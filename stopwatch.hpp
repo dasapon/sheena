@@ -1,4 +1,7 @@
+#pragma once
+
 #include <chrono>
+
 namespace sheena{
 	class Stopwatch {
 		std::chrono::system_clock::time_point start;
