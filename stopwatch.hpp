@@ -20,5 +20,8 @@ namespace sheena{
 			using namespace std::chrono;
 			return duration_cast<minutes>(system_clock::now() - start).count();
 		}
+		void operator=(const Stopwatch& rhs){
+			start = rhs.start;
+		}
 	};
 }
