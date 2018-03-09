@@ -32,7 +32,7 @@ namespace sheena{
 			}
 		}
 		static size_t size(){return Size;}
-		Ty operator[](int idx)const{
+		const Ty& operator[](int idx)const{
 			assert(idx >= 0);
 			assert(idx < Size);
 			return array_[idx];
