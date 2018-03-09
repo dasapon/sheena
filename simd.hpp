@@ -18,6 +18,9 @@ namespace sheena{
 		w[2] = w2;
 		w[3] = w3;
 	}
+	void clear(){
+		m128 = _mm_setzero_ps();
+	}
 	void operator=(const Float4& f) { m128 = f.m128; }
 
 	Float4 operator+(const Float4& f)const { return _mm_add_ps(m128, f.m128); }
@@ -53,6 +56,9 @@ namespace sheena{
 	        w[2] = c;
 	        w[3] = d;
 	    }
+		void clear(){
+			m128 = _mm_setzero_si128();
+		}
 	    void operator=(const Int4& i4){m128 = i4.m128;}
 	    Int4 operator+(const Int4& i4)const {return _mm_add_epi32(m128, i4.m128);}
 	    Int4 operator-(const Int4& i4)const {return _mm_sub_epi32(m128, i4.m128);}
