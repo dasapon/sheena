@@ -34,6 +34,7 @@ int main(void){
 static void test_common(){
 	std::vector<int> v({2, 5, 2, 6});
 	sheena::remove(v, [](int x){return x == 2;});
+	sheena::Array3d<int, 2, 2, 2> array3d;
 	ok_if_true(v.size() == 2);
 	ok_if_true(v[0] == 5);
 	ok_if_true(v[1] == 6);

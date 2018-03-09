@@ -46,4 +46,8 @@ namespace sheena{
 			for(int i=0;i<Size;i++)(*this)[i] = a[i];
 		}
 	};
+	template<typename Ty, size_t Sz1, size_t Sz2>
+	using Array2d = Array<Array<Ty, Sz2>, Sz1>;
+	template<typename Ty, size_t Sz1, size_t Sz2, size_t Sz3>
+	using Array3d = Array<Array<Array<Ty, Sz3>, Sz2>, Sz1>;
 }
