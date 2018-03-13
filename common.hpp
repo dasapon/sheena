@@ -50,4 +50,40 @@ namespace sheena{
 	using Array2d = Array<Array<Ty, Sz2>, Sz1>;
 	template<typename Ty, size_t Sz1, size_t Sz2, size_t Sz3>
 	using Array3d = Array<Array<Array<Ty, Sz3>, Sz2>, Sz1>;
+
+	template<typename Ty>
+	class ArrayAlloc{
+		Ty* array_;
+		size_t size_;
+	public:
+		ArrayAlloc():array_(nullptr), size_(0){}
+		ArrayAlloc(size_t sz):array_(nullptr), size_(0){
+			resize(sz);
+		}
+		~ArrayAlloc(){
+			if(array_ != nullptr)delete[] array_;
+		}
+		void resize(size_t sz){
+			if(array_ != nullptr)delete[] array_;
+			array_ = new Ty[sz];
+			if(array_ == nullptr)throw std::bad_alloc();
+			size_ = sz;
+		}
+		size_t size(){return size_;}
+
+		const Ty& operator[](int idx)const{
+			assert(idx >= 0);
+			assert(idx < size_);
+			return array_[idx];
+		}
+		Ty& operator[](int idx){
+			assert(idx >= 0);
+			assert(idx < size_);
+			return array_[idx];
+		}
+		void operator=(const ArrayAlloc<Ty> & a){
+			if(a.size() != size_)resize(a.size());
+			for(int i=0;i<size_;i++)(*this)[i] = a[i];
+		}
+	};
 }

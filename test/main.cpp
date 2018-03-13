@@ -46,9 +46,12 @@ static void test_math(){
 	ok_if_true(sheena::sigmoid(-1) < 0.5);
 	//softmax
 	sheena::Array<float, 2> array({0, 0});
+	sheena::ArrayAlloc<float> alloc(2);
 	std::normal_distribution<float> dist(0.0, 1.0);
 	std::mt19937 mt;
 	for(int i=0;i<1000;i++){
+		alloc[0] = i;//null pointerで落ちないか?
+		ok_if_true(alloc[0] == i);
 		array[0] = dist(mt);
 		array[1] = dist(mt);
 		auto probability = array;
