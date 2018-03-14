@@ -25,7 +25,10 @@ static void my_assert_float(Ty v1, Ty v2, std::string err_msg){
 }
 static void test_common();
 static void test_math();
+class State;
 int main(void){
+	//コンパイルが通るか否かだけ確認
+	sheena::mcts::Searcher<State, int, 2, 4> searcher;
 	test_common();
 	test_math();
 	std::cout << "test is end" << std::endl;
@@ -59,3 +62,17 @@ static void test_math(){
 		ok_if_true((array[0] >= array[1]) == (probability[0] >= probability[1]));
 	}
 }
+class State{
+	using Action = int;
+	static constexpr size_t NPlayer = 2;
+	void playout(sheena::Array<double, NPlayer>& reward){
+		reward[0] = 0;
+		reward[1] = 0;
+	}
+	int get_actions(int& n, sheena::Array<Action, 4>& actions, sheena::Array<float, 4>& p)const{
+		n = 0;
+		return 0;
+	}
+	uint64_t key(){return 0;}
+	State(const State& state){}
+};
