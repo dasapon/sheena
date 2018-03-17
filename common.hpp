@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <exception>
 
 namespace sheena{
 	template<typename Ty, typename F>
@@ -64,12 +65,13 @@ namespace sheena{
 			if(array_ != nullptr)delete[] array_;
 		}
 		void resize(size_t sz){
+			if(sz == 0)throw std::invalid_argument("array size is zero");
 			if(array_ != nullptr)delete[] array_;
 			array_ = new Ty[sz];
 			if(array_ == nullptr)throw std::bad_alloc();
 			size_ = sz;
 		}
-		size_t size(){return size_;}
+		size_t size()const{return size_;}
 
 		const Ty& operator[](int idx)const{
 			assert(idx >= 0);

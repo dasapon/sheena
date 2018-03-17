@@ -25,12 +25,12 @@ static void my_assert_float(Ty v1, Ty v2, std::string err_msg){
 }
 static void test_common();
 static void test_math();
+static void test_mcts();
 class State;
 int main(void){
-	//コンパイルが通るか否かだけ確認
-	sheena::mcts::Searcher<State, int, 2, 4> searcher;
 	test_common();
 	test_math();
+	test_mcts();
 	std::cout << "test is end" << std::endl;
 	return 0;
 }
@@ -64,15 +64,49 @@ static void test_math(){
 }
 class State{
 	using Action = int;
-	static constexpr size_t NPlayer = 2;
+	static constexpr size_t NPlayer = 1;
+	static constexpr size_t ActionDim = 4;
+	mutable std::mt19937 mt;
+	int number;
+	int turn;
+public:
 	void playout(sheena::Array<double, NPlayer>& reward){
-		reward[0] = 0;
-		reward[1] = 0;
+		while(number < 40){
+			act(mt() % ActionDim + 1);
+		}
+		reward[0] = 10.0 / turn;
 	}
-	int get_actions(int& n, sheena::Array<Action, 4>& actions, sheena::Array<float, 4>& p)const{
-		n = 0;
+	int get_actions(int& n, sheena::Array<Action, ActionDim>& actions, sheena::Array<float, ActionDim>& p)const{
+		if(number >= 40){
+			n = 0;
+			return 0;
+		}
+		n = ActionDim;
+		for(int i=0;i<ActionDim;i++){
+			actions[i] = i + 1;
+			p[i] = 1.0 / ActionDim;
+		}
 		return 0;
 	}
-	uint64_t key(){return 0;}
-	State(const State& state){}
+	uint64_t key()const{return turn * 40 + number;}
+	void act(Action a){
+		number += a;
+		turn++;
+	}
+	State():mt(0), number(0), turn(0){}
+	State(const State& state):mt(state.mt()), number(state.number), turn(state.turn){}
 };
+static void test_mcts(){
+	sheena::mcts::Searcher<State, int, 1, 4> searcher;
+	State state;
+	searcher.set_C(5.0);
+	searcher.search(state, 100000);
+	sheena::Array<int, 4> actions;
+	sheena::Array<double, 4> rewards;
+	sheena::Array<int, 4> count;
+	int n = searcher.search_result(state, actions, rewards, count);
+	ok_if_true(n == 4);
+	for(int i=0;i<n;i++){
+		std::cout << actions[i] << " " << rewards[i] << " " << count[i] << std::endl;
+	}
+}

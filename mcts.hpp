@@ -1,3 +1,6 @@
+
+#include <cmath>
+
 #include "common.hpp"
 
 namespace sheena::mcts{
@@ -17,9 +20,9 @@ namespace sheena::mcts{
 	//uint64_t key()const;
 	template<typename State, typename Action, size_t NPlayer, size_t MaxAction>
 	class Searcher{
-		static constexpr double explore_coefficient = 1.0;
 		static constexpr int chain_size = 4;
-		static constexpr int expand_threshold = 2;
+		double explore_coefficient;
+		int expansion_threshold;
 		struct Edge{
 			double reward;
 			uint64_t played_plus_one;
@@ -33,13 +36,13 @@ namespace sheena::mcts{
 			uint64_t key_;
 			int generation_;
 			int turn_player;
-			int n_moves;
+			int n_action;
 			int total_played;
 			sheena::Array<Action, MaxAction> actions;
 			sheena::Array<float, MaxAction> prior_probability;
 			sheena::Array<Edge, MaxAction> edges;
 		public:
-			Node():generation_(-1), n_moves(0){}
+			Node():generation_(-1), n_action(0){}
 			void invalidate(uint64_t idx){
 				generation_ = -1;
 				//keyが合わないようにする
@@ -47,12 +50,13 @@ namespace sheena::mcts{
 			}
 			uint64_t key()const{return key_;}
 			int generation()const{return generation_;}
+			void update_generation(int gen){generation_ = gen;}
 			bool set_up(const State& state, int gen){
 				generation_ = gen;
 				key_ = state.key();
 				total_played = 0;
-				turn_player = state.get_actions(n_moves, actions, prior_probability);
-				if(n_moves == 0){
+				turn_player = state.get_actions(n_action, actions, prior_probability);
+				if(n_action == 0){
 					//終端ノードは置換表には不要
 					invalidate(key_);
 					return false;
@@ -62,15 +66,31 @@ namespace sheena::mcts{
 			void update(int act_idx, Array<double, NPlayer>& reward){
 				edges[act_idx].update(reward[turn_player]);
 			}
-			Action select_action(int& idx, bool& expand){
+			Action puct(int& idx, bool& expand, double C, int exp_th){
 				double max_ucb = -DBL_MAX;
-				double expl = std::sqrt<double>(total_played) * explore_coefficient;
-				for(int i=0;i<n_moves;i++){
+				double expl = std::sqrt(double(total_played)) * C;
+				total_played++;
+				for(int i=0;i<n_action;i++){
 					double ucb = edges[i].reward + prior_probability[i] * expl / edges[i].played_plus_one;
-					if(max_ucb < ucb)idx = i;
+					if(max_ucb < ucb){
+						idx = i;
+						max_ucb = ucb;
+					}
 				}
-				expand = edges[idx].playout_plus_one > expand_threshold;
+				expand = edges[idx].played_plus_one > exp_th + 1;
 				return actions[idx];
+			}
+			int search_result(Array<Action, MaxAction>& actions, Array<double, MaxAction>& rewards, 
+			Array<int, MaxAction>& count)const{
+				int total = 0;
+				for(int i=0;i<n_action;i++){
+					actions[i] = this->actions[i];
+					rewards[i] = this->edges[i].reward;
+					count[i] = this->edges[i].played_plus_one - 1;
+					total += count[i];
+				}
+				assert(total == total_played);
+				return n_action;
 			}
 		};
 		ArrayAlloc<Array<Node, chain_size>> tt;
@@ -81,7 +101,10 @@ namespace sheena::mcts{
 			int empty = -1;
 			//todo ロックする
 			for(int i=0;i<chain_size;i++){
-				if(tt[idx][i].ok())return &tt[idx][i];
+				if(tt[idx][i].key() == key){
+					tt[idx][i].update_generation(generation_);
+					return &tt[idx][i];
+				}
 				if(tt[idx][i].generation() != generation_)empty = i;
 			}
 			//開いている箇所を使ってノード展開
@@ -92,7 +115,7 @@ namespace sheena::mcts{
 		}
 		void search_rec(State& state, Array<double, NPlayer>& reward, bool expand);
 	public:
-		Searcher():tt(16384){
+		Searcher():explore_coefficient(1.0), expansion_threshold(0), tt(16384){
 			generation_ = 1;
 			clear_tt();
 		}
@@ -111,13 +134,34 @@ namespace sheena::mcts{
 			}
 		}
 		void resize_tt(size_t sz){
-			tt.resize(sz / 2);
+			tt.resize(sz / chain_size);
 			clear_tt();
+		}
+		void set_C(double c){
+			if(c <= 0)throw std::invalid_argument("");
+			explore_coefficient = c;
+		}
+		void set_expansion_threshold(int X){
+			if(X<0)throw std::invalid_argument("");
+			expansion_threshold = X;
+		}
+		//stateにおける各行動の過去の報酬の平均と、play回数を得る
+		//戻り値は合法手数(そもそもそのstateがtree中に無い場合は-1)
+		int search_result(const State& state, Array<Action, MaxAction>& actions, 
+		Array<double, MaxAction>& rewards, Array<int, MaxAction>& count)const{
+			uint64_t key = state.key();
+			size_t idx = key % tt.size();
+			for(int i=0;i<chain_size;i++){
+				if(tt[idx][i].key() == key){
+					return tt[idx][i].search_result(actions, rewards, count);
+				}
+			}
+			return -1;
 		}
 	};
 	template<typename State, typename Action, size_t NPlayer, size_t MaxAction>
 	void Searcher<State, Action, NPlayer, MaxAction>::search_rec(State& state, Array<double, NPlayer>& reward, bool expand){
-		//Nodeを取得し,ロックを取る(並列化する場合)
+		//Nodeを取得し,(todo ロックを取る)
 		Node* node = get_node(state, expand);
 		if(node == nullptr){
 			//playout結果を返す
@@ -127,9 +171,9 @@ namespace sheena::mcts{
 		//UCTで着手を選択
 		int action_idx = -1;
 		bool expand_child = false;
-		Action action = node->select_action(action_idx, expand_child);
+		Action action = node->puct(action_idx, expand_child, explore_coefficient, expansion_threshold);
 		assert(action_idx >= 0);
-		//ロックを解除し, 子ノードへ
+		//(todo ロックを解除し), 子ノードへ
 		state.act(action);
 		search_rec(state, reward, expand_child);
 		//プレイアウト結果を反映
