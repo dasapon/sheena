@@ -66,18 +66,18 @@ class State{
 	using Action = int;
 	static constexpr size_t NPlayer = 1;
 	static constexpr size_t ActionDim = 4;
-	mutable std::mt19937 mt;
+	static sheena::Array<std::mt19937, 2> mt;
 	int number;
 	int turn;
 public:
-	void playout(sheena::Array<double, NPlayer>& reward){
-		while(number < 40){
-			act(mt() % ActionDim + 1);
+	void playout(sheena::Array<double, NPlayer>& reward, size_t thread_id){
+		while(number < 80){
+			act(mt[thread_id]() % ActionDim + 1);
 		}
-		reward[0] = 10.0 / turn;
+		reward[0] = 20.0 / turn;
 	}
 	int get_actions(int& n, sheena::Array<Action, ActionDim>& actions, sheena::Array<float, ActionDim>& p)const{
-		if(number >= 40){
+		if(number >= 80){
 			n = 0;
 			return 0;
 		}
@@ -93,14 +93,17 @@ public:
 		number += a;
 		turn++;
 	}
-	State():mt(0), number(0), turn(0){}
-	State(const State& state):mt(state.mt()), number(state.number), turn(state.turn){}
+	State():number(0), turn(0){}
+	State(const State& state):number(state.number), turn(state.turn){}
 };
+sheena::Array<std::mt19937, 2> State::mt;
 static void test_mcts(){
 	sheena::mcts::Searcher<State, int, 1, 4> searcher;
 	State state;
 	searcher.set_C(5.0);
-	searcher.search(state, 100000);
+	searcher.set_threads(1);
+	sheena::Stopwatch stopwatch;
+	searcher.search(state, 50000, 1000000);
 	sheena::Array<int, 4> actions;
 	sheena::Array<double, 4> rewards;
 	sheena::Array<int, 4> count;
@@ -109,4 +112,5 @@ static void test_mcts(){
 	for(int i=0;i<n;i++){
 		std::cout << actions[i] << " " << rewards[i] << " " << count[i] << std::endl;
 	}
+	std::cout << stopwatch.msec() << "[ms]" << std::endl;
 }

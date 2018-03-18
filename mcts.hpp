@@ -1,5 +1,7 @@
 
 #include <cmath>
+#include <mutex>
+#include <thread>
 
 #include "common.hpp"
 
@@ -11,7 +13,8 @@ namespace sheena::mcts{
 	//actionを実行し,状態遷移する
 	//void act(Action)
 	//playoutを行い, 報酬を得る
-	//void playout(sheena::Array<double, NPlayer>&)
+	//thread_idはそのplayoutを呼び出したスレッドの番号
+	//void playout(sheena::Array<double, NPlayer>&, size_t thread_id)
 	//そのStateにおける行動とそれらの事前確率を得る
 	//戻り値は手番プレイヤの番号(0, 1, ... NPlayer-1)
 	//また、ゲーム終了時には可能な行動数を0として返す
@@ -23,13 +26,19 @@ namespace sheena::mcts{
 		static constexpr int chain_size = 4;
 		double explore_coefficient;
 		int expansion_threshold;
+		int virtual_loss;
+		ArrayAlloc<std::thread> threads;
 		struct Edge{
 			double reward;
 			uint64_t played_plus_one;
 			Edge():reward(0), played_plus_one(1){}
-			void update(double r){
-				reward = (reward * (played_plus_one - 1) + r) / (played_plus_one);
-				played_plus_one++;
+			void update(double r, int vl){
+				reward += r;
+				played_plus_one += 1 - vl;
+			}
+			double Q()const{
+				if(played_plus_one == 1)return 0;
+				else return reward / (played_plus_one - 1);
 			}
 		};
 		class Node{
@@ -63,21 +72,25 @@ namespace sheena::mcts{
 				}
 				return true;
 			}
-			void update(int act_idx, Array<double, NPlayer>& reward){
-				edges[act_idx].update(reward[turn_player]);
+			void update(int act_idx, Array<double, NPlayer>& reward, int vl){
+				edges[act_idx].update(reward[turn_player], vl);
 			}
-			Action puct(int& idx, bool& expand, double C, int exp_th){
+			Action puct(int& idx, bool& expand, double C, int exp_th, int vl){
 				double max_ucb = -DBL_MAX;
 				double expl = std::sqrt(double(total_played)) * C;
 				total_played++;
 				for(int i=0;i<n_action;i++){
-					double ucb = edges[i].reward + prior_probability[i] * expl / edges[i].played_plus_one;
+					double q = edges[i].Q();
+					double ucb = q + prior_probability[i] * expl / edges[i].played_plus_one;
 					if(max_ucb < ucb){
 						idx = i;
 						max_ucb = ucb;
 					}
 				}
 				expand = edges[idx].played_plus_one > exp_th + 1;
+				//virtual loss
+				edges[idx].played_plus_one += vl;
+				
 				return actions[idx];
 			}
 			int search_result(Array<Action, MaxAction>& actions, Array<double, MaxAction>& rewards, 
@@ -85,7 +98,7 @@ namespace sheena::mcts{
 				int total = 0;
 				for(int i=0;i<n_action;i++){
 					actions[i] = this->actions[i];
-					rewards[i] = this->edges[i].reward;
+					rewards[i] = this->edges[i].Q();
 					count[i] = this->edges[i].played_plus_one - 1;
 					total += count[i];
 				}
@@ -93,44 +106,55 @@ namespace sheena::mcts{
 				return n_action;
 			}
 		};
-		ArrayAlloc<Array<Node, chain_size>> tt;
+		ArrayAlloc<std::pair<Array<Node, chain_size>, std::mutex>> tt;
 		int generation_;
 		Node* get_node(State& state, bool expand){
 			uint64_t key = state.key();
 			size_t idx = key % tt.size();
 			int empty = -1;
-			//todo ロックする
 			for(int i=0;i<chain_size;i++){
-				if(tt[idx][i].key() == key){
-					tt[idx][i].update_generation(generation_);
-					return &tt[idx][i];
+				if(tt[idx].first[i].key() == key){
+					tt[idx].first[i].update_generation(generation_);
+					return &tt[idx].first[i];
 				}
-				if(tt[idx][i].generation() != generation_)empty = i;
+				if(tt[idx].first[i].generation() != generation_)empty = i;
 			}
 			//開いている箇所を使ってノード展開
 			if(empty != -1 && expand){
-				if(tt[idx][empty].set_up(state, generation_))return &tt[idx][empty];
+				if(tt[idx].first[empty].set_up(state, generation_))return &tt[idx].first[empty];
 			}
 			return nullptr;
 		}
-		void search_rec(State& state, Array<double, NPlayer>& reward, bool expand);
+		void search_rec(State& state, Array<double, NPlayer>& reward, bool expand, size_t thread_id);
 	public:
-		Searcher():explore_coefficient(1.0), expansion_threshold(0), tt(16384){
+		Searcher():explore_coefficient(1.0), expansion_threshold(0), virtual_loss(3), threads(1), tt(16384){
 			generation_ = 1;
 			clear_tt();
 		}
-		void search(const State& root, size_t po){
+		void search(const State& root, size_t time_limit, size_t po){
 			generation_++;
 			if(generation_ < 0)generation_ = 1;
-			sheena::Array<double, NPlayer> reward;
-			for(int i=0;i<po;i++){
-				State state(root);
-				search_rec(state, reward, true);
+			Stopwatch stopwatch;
+			auto proce = [=](size_t thread_id, size_t t, size_t p){
+				sheena::Array<double, NPlayer> reward;
+				for(int i=0;i<p;i++){
+					State state(root);
+					search_rec(state, reward, true, thread_id);
+					if(stopwatch.msec() >= t)break;
+				}
+			};
+			for(int i=0;i<threads.size();i++){
+				size_t p = po / threads.size();
+				if(po % threads.size() < i)p++;
+				threads[i] = std::thread(proce, i, time_limit, p);
+			}
+			for(int i=0;i<threads.size();i++){
+				threads[i].join();
 			}
 		}
 		void clear_tt(){
 			for(size_t i=0;i<tt.size();i++){
-				for(int j=0;j<chain_size;j++)tt[i][j].invalidate(i);
+				for(int j=0;j<chain_size;j++)tt[i].first[j].invalidate(i);
 			}
 		}
 		void resize_tt(size_t sz){
@@ -145,6 +169,14 @@ namespace sheena::mcts{
 			if(X<0)throw std::invalid_argument("");
 			expansion_threshold = X;
 		}
+		void set_virtual_loss(int X){
+			if(X < 0)throw std::invalid_argument("");
+			virtual_loss = X;
+		}
+		void set_threads(size_t X){
+			if(X <= 0)throw std::invalid_argument("");
+			threads.resize(X);
+		}
 		//stateにおける各行動の過去の報酬の平均と、play回数を得る
 		//戻り値は合法手数(そもそもそのstateがtree中に無い場合は-1)
 		int search_result(const State& state, Array<Action, MaxAction>& actions, 
@@ -152,31 +184,36 @@ namespace sheena::mcts{
 			uint64_t key = state.key();
 			size_t idx = key % tt.size();
 			for(int i=0;i<chain_size;i++){
-				if(tt[idx][i].key() == key){
-					return tt[idx][i].search_result(actions, rewards, count);
+				if(tt[idx].first[i].key() == key){
+					return tt[idx].first[i].search_result(actions, rewards, count);
 				}
 			}
 			return -1;
 		}
 	};
 	template<typename State, typename Action, size_t NPlayer, size_t MaxAction>
-	void Searcher<State, Action, NPlayer, MaxAction>::search_rec(State& state, Array<double, NPlayer>& reward, bool expand){
-		//Nodeを取得し,(todo ロックを取る)
+	void Searcher<State, Action, NPlayer, MaxAction>::search_rec(
+		State& state, Array<double, NPlayer>& reward, bool expand, size_t thread_id){
+		uint64_t tt_idx = state.key() % tt.size();
+		//ロックをかけ, Nodeを取得
+		std::unique_lock<std::mutex> lock(tt[tt_idx].second);
 		Node* node = get_node(state, expand);
 		if(node == nullptr){
 			//playout結果を返す
-			state.playout(reward);
+			state.playout(reward, thread_id);
 			return;
 		}
 		//UCTで着手を選択
 		int action_idx = -1;
 		bool expand_child = false;
-		Action action = node->puct(action_idx, expand_child, explore_coefficient, expansion_threshold);
+		Action action = node->puct(action_idx, expand_child, explore_coefficient, expansion_threshold, virtual_loss);
 		assert(action_idx >= 0);
-		//(todo ロックを解除し), 子ノードへ
+		//ロックを解除し, 子ノードへ
+		lock.unlock();
 		state.act(action);
-		search_rec(state, reward, expand_child);
+		search_rec(state, reward, expand_child, thread_id);
 		//プレイアウト結果を反映
-		node->update(action_idx, reward);
+		lock.lock();
+		node->update(action_idx, reward, virtual_loss);
 	}
 }
