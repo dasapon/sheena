@@ -21,24 +21,30 @@ namespace sheena::mcts{
 	//int get_actions(int&, sheena::Array<Action, MaxAction>&, sheena::Array<float, MaxAction>&)const;
 	//局面のハッシュ値を返す
 	//uint64_t key()const;
-	template<typename State, typename Action, size_t NPlayer, size_t MaxAction>
+	enum MCTS_TYPE{
+		UCB1,
+		PUCT,
+	};
+	template<MCTS_TYPE type, typename State, typename Action, size_t NPlayer, size_t MaxAction>
 	class Searcher{
 		static constexpr int chain_size = 4;
 		double explore_coefficient;
 		int expansion_threshold;
 		int virtual_loss;
 		ArrayAlloc<std::thread> threads;
+	public:
+	private:
 		struct Edge{
 			double reward;
-			uint64_t played_plus_one;
-			Edge():reward(0), played_plus_one(1){}
+			uint64_t played;
+			Edge():reward(0), played(0){}
 			void update(double r, int vl){
 				reward += r;
-				played_plus_one += 1 - vl;
+				played += 1 - vl;
 			}
 			double Q()const{
-				if(played_plus_one == 1)return 0;
-				else return reward / (played_plus_one - 1);
+				if(played == 0)return 0;
+				else return reward / played;
 			}
 		};
 		class Node{
@@ -75,21 +81,38 @@ namespace sheena::mcts{
 			void update(int act_idx, Array<double, NPlayer>& reward, int vl){
 				edges[act_idx].update(reward[turn_player], vl);
 			}
-			Action puct(int& idx, bool& expand, double C, int exp_th, int vl){
-				double max_ucb = -DBL_MAX;
-				double expl = std::sqrt(double(total_played)) * C;
+			Action select(int& idx, bool& expand, double C, int exp_th, int vl){
+				double max_score = -DBL_MAX;
+				double expl;
+				switch(type){
+				case UCB1:
+					expl = std::log(total_played);
+					break;
+				case PUCT:
+					expl = C * std::sqrt(total_played);
+					break;
+				}
 				total_played++;
 				for(int i=0;i<n_action;i++){
 					double q = edges[i].Q();
-					double ucb = q + prior_probability[i] * expl / edges[i].played_plus_one;
-					if(max_ucb < ucb){
+					double score;
+					switch(type){
+					case UCB1:
+						if(edges[i].played == 0)score = 1000000 + prior_probability[i];
+						else score = q + C * std::sqrt(expl / (edges[i].played));
+						break;
+					case PUCT:
+						score = q + prior_probability[i] * expl / (edges[i].played + 1);
+						break;
+					}
+					if(max_score < score){
 						idx = i;
-						max_ucb = ucb;
+						max_score = score;
 					}
 				}
-				expand = edges[idx].played_plus_one > exp_th + 1;
+				expand = edges[idx].played > exp_th;
 				//virtual loss
-				edges[idx].played_plus_one += vl;
+				edges[idx].played += vl;
 				
 				return actions[idx];
 			}
@@ -99,7 +122,7 @@ namespace sheena::mcts{
 				for(int i=0;i<n_action;i++){
 					actions[i] = this->actions[i];
 					rewards[i] = this->edges[i].Q();
-					count[i] = this->edges[i].played_plus_one - 1;
+					count[i] = this->edges[i].played;
 					total += count[i];
 				}
 				assert(total == total_played);
@@ -191,8 +214,8 @@ namespace sheena::mcts{
 			return -1;
 		}
 	};
-	template<typename State, typename Action, size_t NPlayer, size_t MaxAction>
-	void Searcher<State, Action, NPlayer, MaxAction>::search_rec(
+	template<MCTS_TYPE type, typename State, typename Action, size_t NPlayer, size_t MaxAction>
+	void Searcher<type, State, Action, NPlayer, MaxAction>::search_rec(
 		State& state, Array<double, NPlayer>& reward, bool expand, size_t thread_id){
 		uint64_t tt_idx = state.key() % tt.size();
 		//ロックをかけ, Nodeを取得
@@ -206,7 +229,7 @@ namespace sheena::mcts{
 		//UCTで着手を選択
 		int action_idx = -1;
 		bool expand_child = false;
-		Action action = node->puct(action_idx, expand_child, explore_coefficient, expansion_threshold, virtual_loss);
+		Action action = node->select(action_idx, expand_child, explore_coefficient, expansion_threshold, virtual_loss);
 		assert(action_idx >= 0);
 		//ロックを解除し, 子ノードへ
 		lock.unlock();

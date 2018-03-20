@@ -98,9 +98,9 @@ public:
 };
 sheena::Array<std::mt19937, 2> State::mt;
 static void test_mcts(){
-	sheena::mcts::Searcher<State, int, 1, 4> searcher;
+	sheena::mcts::Searcher<sheena::mcts::UCB1, State, int, 1, 4> searcher;
 	State state;
-	searcher.set_C(5.0);
+	searcher.set_C(1.4);
 	searcher.set_threads(1);
 	sheena::Stopwatch stopwatch;
 	searcher.search(state, 50000, 1000000);
