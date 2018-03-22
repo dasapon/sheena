@@ -151,9 +151,9 @@ namespace sheena::mcts{
 		}
 		void search_rec(State& state, Array<double, NPlayer>& reward, bool expand, size_t thread_id);
 	public:
-		Searcher():explore_coefficient(1.0), expansion_threshold(0), virtual_loss(3), threads(1), tt(16384){
+		Searcher():explore_coefficient(1.0), expansion_threshold(0), virtual_loss(3), threads(1){
 			generation_ = 1;
-			clear_tt();
+			resize_tt(32);
 		}
 		void search(const State& root, size_t time_limit, size_t po){
 			generation_++;
@@ -181,9 +181,11 @@ namespace sheena::mcts{
 				for(int j=0;j<chain_size;j++)tt[i].first[j].invalidate(i);
 			}
 		}
-		void resize_tt(size_t sz){
+		size_t resize_tt(size_t mb){
+			size_t sz = mb * 1000 * 1000 / sizeof(Node);
 			tt.resize(sz / chain_size);
 			clear_tt();
+			return sz;
 		}
 		void set_C(double c){
 			if(c <= 0)throw std::invalid_argument("");
