@@ -79,6 +79,7 @@ namespace sheena::mcts{
 				return true;
 			}
 			void update(int act_idx, Array<double, NPlayer>& reward, int vl){
+				total_played += 1 - vl;
 				edges[act_idx].update(reward[turn_player], vl);
 			}
 			Action select(int& idx, bool& expand, double C, int exp_th, int vl){
@@ -86,13 +87,12 @@ namespace sheena::mcts{
 				double expl;
 				switch(type){
 				case UCB1:
-					expl = std::log(total_played);
+					expl = std::log(double(total_played));
 					break;
 				case PUCT:
-					expl = C * std::sqrt(total_played);
+					expl = C * std::sqrt(double(total_played));
 					break;
 				}
-				total_played++;
 				for(int i=0;i<n_action;i++){
 					double q = edges[i].Q();
 					double score;
@@ -102,7 +102,8 @@ namespace sheena::mcts{
 						else score = q + C * std::sqrt(expl / (edges[i].played));
 						break;
 					case PUCT:
-						score = q + prior_probability[i] * expl / (edges[i].played + 1);
+						if(total_played == 0)score = prior_probability[i];
+						else score = q + prior_probability[i] * expl / (edges[i].played + 1);
 						break;
 					}
 					if(max_score < score){
@@ -113,7 +114,7 @@ namespace sheena::mcts{
 				expand = edges[idx].played > exp_th;
 				//virtual loss
 				edges[idx].played += vl;
-				
+				total_played+=vl;
 				return actions[idx];
 			}
 			int search_result(Array<Action, MaxAction>& actions, Array<double, MaxAction>& rewards, 
