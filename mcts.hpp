@@ -36,7 +36,7 @@ namespace sheena::mcts{
 	private:
 		struct Edge{
 			double reward;
-			uint64_t played;
+			int played;
 			Edge():reward(0), played(0){}
 			void update(double r, int vl){
 				reward += r;
@@ -90,7 +90,8 @@ namespace sheena::mcts{
 					expl = std::log(double(total_played));
 					break;
 				case PUCT:
-					expl = C * std::sqrt(double(total_played));
+					if(total_played == 0)expl = C;
+					else expl = C * std::sqrt(double(total_played));
 					break;
 				}
 				for(int i=0;i<n_action;i++){
@@ -102,8 +103,7 @@ namespace sheena::mcts{
 						else score = q + C * std::sqrt(expl / (edges[i].played));
 						break;
 					case PUCT:
-						if(total_played == 0)score = prior_probability[i];
-						else score = q + prior_probability[i] * expl / (edges[i].played + 1);
+						score = q + prior_probability[i] * expl / (edges[i].played + 1);
 						break;
 					}
 					if(max_score < score){
