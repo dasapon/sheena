@@ -153,7 +153,7 @@ namespace sheena::mcts{
 		}
 		void search_rec(State& state, Array<double, NPlayer>& reward, bool expand, size_t thread_id);
 	public:
-		Searcher():explore_coefficient(1.0), expansion_threshold(0), virtual_loss(3), threads(1){
+		Searcher():explore_coefficient(1.0), expansion_threshold(0), virtual_loss(3), vl_reward(0), threads(1){
 			generation_ = 1;
 			resize_tt(32);
 		}
