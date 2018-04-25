@@ -160,19 +160,25 @@ namespace sheena::mcts{
 		void search(const State& root, size_t time_limit, size_t po){
 			generation_++;
 			if(generation_ < 0)generation_ = 1;
-			Stopwatch stopwatch;
-			auto proce = [=](size_t thread_id, size_t t, size_t p){
+			std::mutex mtx;
+			size_t cnt = 0;
+			auto proce = [&](size_t thread_id){
+				Stopwatch stopwatch;
 				sheena::Array<double, NPlayer> reward;
-				for(int i=0;i<p;i++){
+				while(true){
 					State state(root);
+					{
+						std::lock_guard<std::mutex> lk(mtx);
+						if(cnt < po)cnt++;
+						else break;
+					}
 					search_rec(state, reward, true, thread_id);
-					if(stopwatch.msec() >= t)break;
+					if(stopwatch.msec() >= time_limit)break;
 				}
+				return;
 			};
 			for(int i=0;i<threads.size();i++){
-				size_t p = po / threads.size();
-				if(po % threads.size() < i)p++;
-				threads[i] = std::thread(proce, i, time_limit, p);
+				threads[i] = std::thread(proce, i);
 			}
 			for(int i=0;i<threads.size();i++){
 				threads[i].join();
