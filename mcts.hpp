@@ -31,6 +31,7 @@ namespace sheena::mcts{
 		double explore_coefficient;
 		int expansion_threshold;
 		int virtual_loss;
+		double vl_reward;
 		ArrayAlloc<std::thread> threads;
 	public:
 	private:
@@ -38,8 +39,8 @@ namespace sheena::mcts{
 			double reward;
 			int played;
 			Edge():reward(0), played(0){}
-			void update(double r, int vl){
-				reward += r;
+			void update(double r, int vl, double vl_reward){
+				reward += r - vl_reward * vl;
 				played += 1 - vl;
 			}
 			double Q()const{
@@ -78,11 +79,11 @@ namespace sheena::mcts{
 				}
 				return true;
 			}
-			void update(int act_idx, Array<double, NPlayer>& reward, int vl){
+			void update(int act_idx, Array<double, NPlayer>& reward, int vl, double vl_reward){
 				total_played += 1 - vl;
-				edges[act_idx].update(reward[turn_player], vl);
+				edges[act_idx].update(reward[turn_player], vl, vl_reward);
 			}
-			Action select(int& idx, bool& expand, double C, int exp_th, int vl){
+			Action select(int& idx, bool& expand, double C, int exp_th, int vl, double vl_reward){
 				double max_score = -DBL_MAX;
 				double expl;
 				switch(type){
@@ -114,6 +115,7 @@ namespace sheena::mcts{
 				expand = edges[idx].played > exp_th;
 				//virtual loss
 				edges[idx].played += vl;
+				edges[idx].reward += vl_reward * vl;
 				total_played+=vl;
 				return actions[idx];
 			}
@@ -195,9 +197,10 @@ namespace sheena::mcts{
 			if(X<0)throw std::invalid_argument("");
 			expansion_threshold = X;
 		}
-		void set_virtual_loss(int X){
+		void set_virtual_loss(int X, double lose_reward){
 			if(X < 0)throw std::invalid_argument("");
 			virtual_loss = X;
+			vl_reward = lose_reward;
 		}
 		void set_threads(size_t X){
 			if(X <= 0)throw std::invalid_argument("");
@@ -232,7 +235,7 @@ namespace sheena::mcts{
 		//UCTで着手を選択
 		int action_idx = -1;
 		bool expand_child = false;
-		Action action = node->select(action_idx, expand_child, explore_coefficient, expansion_threshold, virtual_loss);
+		Action action = node->select(action_idx, expand_child, explore_coefficient, expansion_threshold, virtual_loss, vl_reward);
 		assert(action_idx >= 0);
 		//ロックを解除し, 子ノードへ
 		lock.unlock();
@@ -240,6 +243,6 @@ namespace sheena::mcts{
 		search_rec(state, reward, expand_child, thread_id);
 		//プレイアウト結果を反映
 		lock.lock();
-		node->update(action_idx, reward, virtual_loss);
+		node->update(action_idx, reward, virtual_loss, vl_reward);
 	}
 }
