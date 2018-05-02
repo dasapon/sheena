@@ -18,7 +18,7 @@ namespace sheena::mcts{
 	//そのStateにおける行動とそれらの事前確率を得る
 	//戻り値は手番プレイヤの番号(0, 1, ... NPlayer-1)
 	//また、ゲーム終了時には可能な行動数を0として返す
-	//int get_actions(int&, sheena::Array<Action, MaxAction>&, sheena::Array<float, MaxAction>&)const;
+	//int get_actions(int&, sheena::Array<Action, MaxAction>&, sheena::Array<float, MaxAction>&, size_t thread_id)const;
 	//局面のハッシュ値を返す
 	//uint64_t key()const;
 	enum MCTS_TYPE{
@@ -67,11 +67,11 @@ namespace sheena::mcts{
 			uint64_t key()const{return key_;}
 			int generation()const{return generation_;}
 			void update_generation(int gen){generation_ = gen;}
-			bool set_up(const State& state, int gen){
+			bool set_up(const State& state, int gen, int thread_id){
 				generation_ = gen;
 				key_ = state.key();
 				total_played = 0;
-				turn_player = state.get_actions(n_action, actions, prior_probability);
+				turn_player = state.get_actions(n_action, actions, prior_probability, thread_id);
 				if(n_action == 0){
 					//終端ノードは置換表には不要
 					invalidate(key_);
@@ -134,7 +134,7 @@ namespace sheena::mcts{
 		};
 		ArrayAlloc<std::pair<Array<Node, chain_size>, std::mutex>> tt;
 		int generation_;
-		Node* get_node(State& state, bool expand){
+		Node* get_node(State& state, bool expand, int thread_id){
 			uint64_t key = state.key();
 			size_t idx = key % tt.size();
 			int empty = -1;
@@ -147,7 +147,7 @@ namespace sheena::mcts{
 			}
 			//開いている箇所を使ってノード展開
 			if(empty != -1 && expand){
-				if(tt[idx].first[empty].set_up(state, generation_))return &tt[idx].first[empty];
+				if(tt[idx].first[empty].set_up(state, generation_, thread_id))return &tt[idx].first[empty];
 			}
 			return nullptr;
 		}
@@ -232,7 +232,7 @@ namespace sheena::mcts{
 		uint64_t tt_idx = state.key() % tt.size();
 		//ロックをかけ, Nodeを取得
 		std::unique_lock<std::mutex> lock(tt[tt_idx].second);
-		Node* node = get_node(state, expand);
+		Node* node = get_node(state, expand, thread_id);
 		if(node == nullptr){
 			//playout結果を返す
 			state.playout(reward, thread_id);

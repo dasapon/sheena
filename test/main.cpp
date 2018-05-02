@@ -76,7 +76,7 @@ public:
 		}
 		reward[0] = 20.0 / turn;
 	}
-	int get_actions(int& n, sheena::Array<Action, ActionDim>& actions, sheena::Array<float, ActionDim>& p)const{
+	int get_actions(int& n, sheena::Array<Action, ActionDim>& actions, sheena::Array<float, ActionDim>& p, size_t thread_id)const{
 		if(number >= 80){
 			n = 0;
 			return 0;
