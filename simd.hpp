@@ -70,4 +70,53 @@ namespace sheena{
 		int operator[](int i)const { return w[i]; }
 		int& operator[](int i){ return w[i]; }
 	};
+	template<size_t N>
+	class Int4Block{
+		union{
+			int w[4 * N];
+			__m128i m128[N];
+		};
+		Int4Block(__m128i* x){
+			for(int i=0;i<N;i++)m128[i] = x[i];
+		}
+	public:
+		Int4Block(int i){
+			for(int i=0;i<N;i++)m128[i] = _mm_set1_epi32(i);
+		}
+		Int4Block(){
+			for(int i=0;i<N;i++)m128[i] = _mm_setzero_si128();
+		}
+		void operator=(const Int4Block<N>& rhs){
+			for(int i=0;i<N;i++)m128[i] = rhs.m128[i];
+		}
+		void clear(){
+			for(int i=0;i<N;i++)m128[i] = _mm_setzero_si128();
+		}
+		Int4Block operator+(const Int4Block<N>& rhs)const{
+			__m128i ret[N];
+			for(int i=0;i<N;i++)ret[i] = _mm_add_epi32(m128[i], rhs.m128[i]);
+			return Int4Block(ret[N]);
+		}
+		Int4Block operator-(const Int4Block<N>& rhs)const{
+			__m128i ret[N];
+			for(int i=0;i<N;i++)ret[i] = _mm_sub_epi32(m128[i], rhs.m128[i]);
+			return Int4Block(ret[N]);
+		}
+		Int4Block operator*(const Int4Block<N>& rhs)const{
+			__m128i ret[N];
+			for(int i=0;i<N;i++)ret[i] = _mm_mul_epi32(m128[i], rhs.m128[i]);
+			return Int4Block(ret[N]);
+		}
+		void operator+=(const Int4Block<N>& rhs){
+			for(int i=0;i<N;i++)m128[i] = _mm_add_epi32(m128[i], rhs.m128[i]);
+		}
+		void operator-=(const Int4Block<N>& rhs){
+			for(int i=0;i<N;i++)m128[i] = _mm_sub_epi32(m128[i], rhs.m128[i]);
+		}
+		void operator*=(const Int4Block<N>& rhs){
+			for(int i=0;i<N;i++)m128[i] = _mm_mul_epi32(m128[i], rhs.m128[i]);
+		}
+		int operator[](int i)const{return w[i];}
+		int& operator[](int i){return w[i];}
+	};
 }
