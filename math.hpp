@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <float.h>
+#include <cmath>
 
 #include "common.hpp"
 

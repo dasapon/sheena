@@ -1,6 +1,14 @@
 #pragma once
 
-#include <xmmintrin.h>
+#ifdef __FMA__
+#define FMA_ENABLE
+#endif
+#if defined(__AVX__) && defined(__AVX2__)
+#define SIMD256_ENABLE
+#include <nmmintrin.h>
+#endif
+#include <x86intrin.h>
+
 namespace sheena{
 	class Float4 {
 	union {
@@ -8,7 +16,7 @@ namespace sheena{
 		__m128 m128;
 	};
 	Float4(__m128 m):m128(m){}
-	public:
+public:
 	Float4(float f):m128(_mm_set1_ps(f)){}
 	Float4():m128(_mm_setzero_ps()){}
 	Float4(const Float4& f4):m128(f4.m128){}
@@ -70,53 +78,106 @@ namespace sheena{
 		int operator[](int i)const { return w[i]; }
 		int& operator[](int i){ return w[i]; }
 	};
-	template<size_t N>
-	class Int4Block{
-		union{
-			int w[4 * N];
-			__m128i m128[N];
-		};
-		Int4Block(__m128i* x){
-			for(int i=0;i<N;i++)m128[i] = x[i];
+	template<size_t Size>
+	class VFlt{
+		alignas(32) float w[Size];
+		__m128 get_m128(size_t idx)const{
+			assert(idx < Size);
+			assert(idx % 4 == 0);
+			return _mm_load_ps(w + idx);
+		}
+		void set_m128(size_t idx, const __m128& m128)const{
+			assert(idx < Size);
+			assert(idx % 4 == 0);
+			_mm_store_ps(w + idx, m128);
 		}
 	public:
-		Int4Block(int i){
-			for(int i=0;i<N;i++)m128[i] = _mm_set1_epi32(i);
+		VFlt(){
 		}
-		Int4Block(){
-			for(int i=0;i<N;i++)m128[i] = _mm_setzero_si128();
+		VFlt(float f){
+			__m128 mm = _mm_set1_ps(f);
+			for(int i = 0;i < int64_t(Size) - 3;i+=4){
+				set_m128(i, mm);
+			}
+			if(Size % 4 >= 3)w[Size - 3] = f;
+			if(Size % 4 >= 2)w[Size - 2] = f;
+			if(Size % 4 >= 1)w[Size - 1] = f;
 		}
-		void operator=(const Int4Block<N>& rhs){
-			for(int i=0;i<N;i++)m128[i] = rhs.m128[i];
+		VFlt(const VFlt<Size>& rhs){
+			(*this) = rhs;
 		}
+		static size_t size(){return Size;}
 		void clear(){
-			for(int i=0;i<N;i++)m128[i] = _mm_setzero_si128();
+			for(int i = 0;i < int64_t(Size) - 3;i+=4){
+				_mm_store_ps(w + i, _mm_setzero_ps());
+			}
+			if(Size % 4 >= 3)w[Size - 3] = 0;
+			if(Size % 4 >= 2)w[Size - 2] = 0;
+			if(Size % 4 >= 1)w[Size - 1] = 0;
 		}
-		Int4Block operator+(const Int4Block<N>& rhs)const{
-			__m128i ret[N];
-			for(int i=0;i<N;i++)ret[i] = _mm_add_epi32(m128[i], rhs.m128[i]);
-			return Int4Block(ret[N]);
+		void operator=(const VFlt<Size>& rhs){
+			for(int i = 0;i < int64_t(Size) - 3;i+=4){
+				__m128 mm = rhs.get_m128(i);
+				_mm_store_ps(w + i, mm);
+			}
+			if(Size % 4 >= 3)w[Size - 3] = rhs.w[Size - 3];
+			if(Size % 4 >= 2)w[Size - 2] = rhs.w[Size - 2];
+			if(Size % 4 >= 1)w[Size - 1] = rhs.w[Size - 1];
 		}
-		Int4Block operator-(const Int4Block<N>& rhs)const{
-			__m128i ret[N];
-			for(int i=0;i<N;i++)ret[i] = _mm_sub_epi32(m128[i], rhs.m128[i]);
-			return Int4Block(ret[N]);
+		//内積計算
+		float inner_product(const VFlt<Size>& rhs)const{
+			float ret = 0;
+			if(Size >= 4){
+				__m128 mm;
+				for(int i=0;i < Size - 3;i+=4){
+#ifdef FMA_ENABLE
+				//FMAを用いた実装
+				mm = _mm_fmadd_ps(get_m128(i), rhs.get_m128(i), mm);
+#else
+				mm = _mm_add_ps(mm, _mm_mul_ps(get_m128(i), rhs.get_m128(i)));
+#endif
+				}
+				alignas(32) float v[4];
+				_mm_store_ps(v, mm);
+				ret = v[0] + v[1] + v[2] + v[3];
+			}
+			if(Size % 4 >= 3)ret = std::fma(w[Size - 3], rhs.w[Size - 3], ret);
+			if(Size % 4 >= 2)ret = std::fma(w[Size - 2], rhs.w[Size - 2], ret);
+			if(Size % 4 >= 1)ret = std::fma(w[Size - 1], rhs.w[Size - 1], ret);
+			return ret;
 		}
-		Int4Block operator*(const Int4Block<N>& rhs)const{
-			__m128i ret[N];
-			for(int i=0;i<N;i++)ret[i] = _mm_mul_epi32(m128[i], rhs.m128[i]);
-			return Int4Block(ret[N]);
+#define MATH_OPERATOR(OP, name)\
+VFlt<Size> operator OP(const VFlt<Size>& rhs)const{\
+	VFlt ret;\
+	for(int i=0;i<int64_t(Size) - 3;i+=4){\
+		__m128 mm = _mm_##name##_ps(_mm_load_ps(w + i), _mm_load_ps(rhs.w + i));\
+		_mm_store_ps(ret.w + i, mm);\
+	}\
+	if(Size % 4 >= 3)ret.w[Size - 3] = w[Size - 3] OP rhs.w[Size - 3];\
+	if(Size % 4 >= 2)ret.w[Size - 2] = w[Size - 2] OP rhs.w[Size - 2];\
+	if(Size % 4 >= 1)ret.w[Size - 1] = w[Size - 1] OP rhs.w[Size - 1];\
+}\
+void operator OP##=(const VFlt<Size>& rhs){\
+	for(int i=0;i<int64_t(Size) - 3;i+=4){\
+		__m128 mm = _mm_##name##_ps(_mm_load_ps(w + i), _mm_load_ps(rhs.w + i));\
+		_mm_store_ps(w + i, mm);\
+	}\
+	if(Size % 4 >= 3)w[Size - 3] OP##= rhs.w[Size - 3];\
+	if(Size % 4 >= 2)w[Size - 2] OP##= rhs.w[Size - 2];\
+	if(Size % 4 >= 1)w[Size - 1] OP##= rhs.w[Size - 1];\
+}
+		MATH_OPERATOR(+, add);
+		MATH_OPERATOR(-, sub);
+		MATH_OPERATOR(*, mul);
+		MATH_OPERATOR(/, div);
+#undef MATH_OPERATOR
+		float operator[](size_t idx)const{
+			assert(idx < Size);
+			return w[idx];
 		}
-		void operator+=(const Int4Block<N>& rhs){
-			for(int i=0;i<N;i++)m128[i] = _mm_add_epi32(m128[i], rhs.m128[i]);
+		float& operator[](size_t idx){
+			assert(idx < Size);
+			return w[idx];
 		}
-		void operator-=(const Int4Block<N>& rhs){
-			for(int i=0;i<N;i++)m128[i] = _mm_sub_epi32(m128[i], rhs.m128[i]);
-		}
-		void operator*=(const Int4Block<N>& rhs){
-			for(int i=0;i<N;i++)m128[i] = _mm_mul_epi32(m128[i], rhs.m128[i]);
-		}
-		int operator[](int i)const{return w[i];}
-		int& operator[](int i){return w[i];}
 	};
 }

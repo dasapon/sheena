@@ -25,11 +25,17 @@ static void my_assert_float(Ty v1, Ty v2, std::string err_msg){
 }
 static void test_common();
 static void test_math();
+static void test_simd();
 static void test_mcts();
+
 class State;
 int main(void){
+	std::cout << "common" << std::endl;
 	test_common();
+	std::cout << "math" << std::endl;
 	test_math();
+	std::cout << "simd" << std::endl;
+	test_simd();
 	test_mcts();
 	std::cout << "test is end" << std::endl;
 	return 0;
@@ -61,6 +67,31 @@ static void test_math(){
 		sheena::softmax<2>(probability, 2);
 		ok_if_true((array[0] >= array[1]) == (probability[0] >= probability[1]));
 	}
+}
+
+template<size_t Size>
+static void test_simd_sub(){
+	sheena::VFlt<Size> v;
+	sheena::VFlt<Size> v2;
+	for(int i=0;i<Size;i++){
+		v[i] = i;
+		v2[i] = i;
+	}
+	v += v2;
+	for(int i=0;i<Size;i++){
+		ok_if_equal(v[i], float(i + i));
+	}
+	float ip = v2.inner_product(v2);
+	float ip_ = 0;
+	for(int i=0;i<Size;i++)ip_ += i * i;
+	ok_if_equal(ip, ip_);
+
+}
+static void test_simd(){
+	test_simd_sub<3>();
+	test_simd_sub<6>();
+	test_simd_sub<9>();
+	test_simd_sub<12>();
 }
 class State{
 	using Action = int;
