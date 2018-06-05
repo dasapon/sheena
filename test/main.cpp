@@ -12,7 +12,7 @@
 
 static void my_assert(bool eq, std::string err_msg){
 	if(!eq){
-		std::cout << "test is failed." << err_msg << std::endl;
+		std::cout << err_msg << std::endl;
 	}
 }
 template<typename Ty>
@@ -36,6 +36,7 @@ int main(void){
 	test_math();
 	std::cout << "simd" << std::endl;
 	test_simd();
+	std::cout << "mcts" << std::endl;
 	test_mcts();
 	std::cout << "test is end" << std::endl;
 	return 0;
@@ -71,12 +72,13 @@ static void test_math(){
 
 template<size_t Size>
 static void test_simd_sub(){
+	//浮動小数点演算のテスト
 	sheena::VFlt<Size> v;
-	sheena::VFlt<Size> v2;
 	for(int i=0;i<Size;i++){
 		v[i] = i;
-		v2[i] = i;
 	}
+	
+	sheena::VFlt<Size> v2(v);
 	v += v2;
 	for(int i=0;i<Size;i++){
 		ok_if_equal(v[i], float(i + i));
@@ -85,7 +87,14 @@ static void test_simd_sub(){
 	float ip_ = 0;
 	for(int i=0;i<Size;i++)ip_ += i * i;
 	ok_if_equal(ip, ip_);
-
+	//整数演算のテスト
+	sheena::VInt<Size> vi;
+	for(int i=0;i<Size;i++)vi[i] = i;
+	sheena::VInt<Size> vi2(vi);
+	vi *= vi2;
+	for(int i=0;i<Size;i++){
+		ok_if_true(vi[i] == i * i);
+	}
 }
 static void test_simd(){
 	test_simd_sub<3>();

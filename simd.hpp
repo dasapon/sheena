@@ -70,11 +70,11 @@ public:
 	    void operator=(const Int4& i4){m128 = i4.m128;}
 	    Int4 operator+(const Int4& i4)const {return _mm_add_epi32(m128, i4.m128);}
 	    Int4 operator-(const Int4& i4)const {return _mm_sub_epi32(m128, i4.m128);}
-	    Int4 operator*(const Int4& i4)const {return _mm_mul_epi32(m128, i4.m128);}
+	    Int4 operator*(const Int4& i4)const {return _mm_mullo_epi32(m128, i4.m128);}
 
 	    void operator+=(const Int4& i4){m128 = _mm_add_epi32(m128, i4.m128);}
 	    void operator-=(const Int4& i4){m128 = _mm_sub_epi32(m128, i4.m128);}
-	    void operator*=(const Int4& i4){m128 = _mm_mul_epi32(m128, i4.m128);}
+	    void operator*=(const Int4& i4){m128 = _mm_mullo_epi32(m128, i4.m128);}
 		int operator[](int i)const { return w[i]; }
 		int& operator[](int i){ return w[i]; }
 	};
@@ -86,18 +86,12 @@ public:
 			assert(idx % 4 == 0);
 			return _mm_load_ps(w + idx);
 		}
-		void set_m128(size_t idx, const __m128& m128)const{
-			assert(idx < Size);
-			assert(idx % 4 == 0);
-			_mm_store_ps(w + idx, m128);
-		}
 	public:
-		VFlt(){
-		}
+		VFlt(){}
 		VFlt(float f){
 			__m128 mm = _mm_set1_ps(f);
 			for(int i = 0;i < int64_t(Size) - 3;i+=4){
-				set_m128(i, mm);
+				_mm_store_ps(w + i, mm);
 			}
 			if(Size % 4 >= 3)w[Size - 3] = f;
 			if(Size % 4 >= 2)w[Size - 2] = f;
@@ -105,6 +99,14 @@ public:
 		}
 		VFlt(const VFlt<Size>& rhs){
 			(*this) = rhs;
+		}
+		float operator[](size_t idx)const{
+			assert(idx < Size);
+			return w[idx];
+		}
+		float& operator[](size_t idx){
+			assert(idx < Size);
+			return w[idx];
 		}
 		static size_t size(){return Size;}
 		void clear(){
@@ -156,6 +158,7 @@ VFlt<Size> operator OP(const VFlt<Size>& rhs)const{\
 	if(Size % 4 >= 3)ret.w[Size - 3] = w[Size - 3] OP rhs.w[Size - 3];\
 	if(Size % 4 >= 2)ret.w[Size - 2] = w[Size - 2] OP rhs.w[Size - 2];\
 	if(Size % 4 >= 1)ret.w[Size - 1] = w[Size - 1] OP rhs.w[Size - 1];\
+	return ret;\
 }\
 void operator OP##=(const VFlt<Size>& rhs){\
 	for(int i=0;i<int64_t(Size) - 3;i+=4){\
@@ -171,13 +174,76 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		MATH_OPERATOR(*, mul);
 		MATH_OPERATOR(/, div);
 #undef MATH_OPERATOR
-		float operator[](size_t idx)const{
+	};
+	template<size_t Size>
+	class VInt{
+		alignas(32) int32_t w[Size];
+		__m128 get_si128(int idx)const{
+			assert(idx + 3 < Size);
+			assert(idx % 4 == 0);
+			return _mm_load_si128((const __m128i*)(w + idx));
+		}
+	public:
+		VInt(){}
+		VInt(int x){
+			for(int i=0;i<int64_t(Size) - 3;i+=4){
+				_mm_store_si128((__m128i*)(w + i), _mm_set1_epi32(x));
+			}
+			if(Size % 4 >= 3)w[Size - 3] = x;
+			if(Size % 4 >= 2)w[Size - 2] = x;
+			if(Size % 4 >= 1)w[Size - 1] = x;
+		}
+		VInt(const VInt<Size>& rhs){
+			(*this) = rhs;
+		}
+		int operator[](size_t idx)const{
 			assert(idx < Size);
 			return w[idx];
 		}
-		float& operator[](size_t idx){
+		int& operator[](size_t idx){
 			assert(idx < Size);
 			return w[idx];
 		}
+		void clear(){
+			for(int i=0;i<int64_t(Size) - 3;i+=4){
+				_mm_store_si128((__m128i*)(w + i), _mm_setzero_si128());
+			}
+			if(Size % 4 >= 3)w[Size - 3] = 0;
+			if(Size % 4 >= 2)w[Size - 2] = 0;
+			if(Size % 4 >= 1)w[Size - 1] = 0;
+		}
+		void operator=(const VInt& rhs){
+			for(int i=0;i<int64_t(Size) - 3;i+=4){
+				_mm_store_si128((__m128i*)(w + i), rhs.get_si128(i));
+			}
+			if(Size % 4 >= 3)w[Size - 3] = rhs.w[Size - 3];
+			if(Size % 4 >= 2)w[Size - 2] = rhs.w[Size - 2];
+			if(Size % 4 >= 1)w[Size - 1] = rhs.w[Size - 1];
+		}
+#define MATH_OPERATOR(OP, name)\
+VInt<Size> operator OP(const VInt<Size>& rhs)const{\
+	VInt<Size> ret;\
+	for(int i=0;i<int64_t(Size) - 3;i+=4){\
+		__m128 mm = _mm_##name##_epi32(get_si128(i), rhs.get_si128(i));\
+		_mm_store_si128((__m128i*)(ret.w + i), mm);\
+	}\
+	if(Size % 4 >= 3)ret.w[Size - 3] = w[Size - 3] OP rhs.w[Size - 3];\
+	if(Size % 4 >= 2)ret.w[Size - 2] = w[Size - 2] OP rhs.w[Size - 2];\
+	if(Size % 4 >= 1)ret.w[Size - 1] = w[Size - 1] OP rhs.w[Size - 1];\
+	return ret;\
+}\
+void operator OP##=(const VInt<Size>& rhs){\
+	for(int i=0;i<int64_t(Size) - 3;i+=4){\
+		__m128 mm = _mm_##name##_epi32(get_si128(i), rhs.get_si128(i));\
+		_mm_store_si128((__m128i*)(w + i), mm);\
+	}\
+	if(Size % 4 >= 3)w[Size - 3] OP##= rhs.w[Size - 3];\
+	if(Size % 4 >= 2)w[Size - 2] OP##= rhs.w[Size - 2];\
+	if(Size % 4 >= 1)w[Size - 1] OP##= rhs.w[Size - 1];\
+}
+	MATH_OPERATOR(+, add);
+	MATH_OPERATOR(-, sub);
+	MATH_OPERATOR(*, mullo);
+#undef MATH_OPERATOR
 	};
 }
