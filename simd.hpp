@@ -80,6 +80,7 @@ public:
 	};
 	template<size_t Size>
 	class VFlt{
+		static constexpr size_t simd_loop_end = Size - Size % 4;
 		alignas(32) float w[Size];
 		__m128 get_m128(size_t idx)const{
 			assert(idx < Size);
@@ -90,7 +91,7 @@ public:
 		VFlt(){}
 		VFlt(float f){
 			__m128 mm = _mm_set1_ps(f);
-			for(int i = 0;i < int64_t(Size) - 3;i+=4){
+			for(int i = 0;i < simd_loop_end;i+=4){
 				_mm_store_ps(w + i, mm);
 			}
 			if(Size % 4 >= 3)w[Size - 3] = f;
@@ -110,7 +111,7 @@ public:
 		}
 		static size_t size(){return Size;}
 		void clear(){
-			for(int i = 0;i < int64_t(Size) - 3;i+=4){
+			for(int i = 0;i < simd_loop_end;i+=4){
 				_mm_store_ps(w + i, _mm_setzero_ps());
 			}
 			if(Size % 4 >= 3)w[Size - 3] = 0;
@@ -118,7 +119,7 @@ public:
 			if(Size % 4 >= 1)w[Size - 1] = 0;
 		}
 		void operator=(const VFlt<Size>& rhs){
-			for(int i = 0;i < int64_t(Size) - 3;i+=4){
+			for(int i = 0;i < simd_loop_end;i+=4){
 				__m128 mm = rhs.get_m128(i);
 				_mm_store_ps(w + i, mm);
 			}
@@ -131,7 +132,7 @@ public:
 			float ret = 0;
 			if(Size >= 4){
 				__m128 mm;
-				for(int i=0;i < Size - 3;i+=4){
+				for(uint32_t i=0;i < simd_loop_end;i+=4){
 #ifdef FMA_ENABLE
 				//FMAを用いた実装
 				mm = _mm_fmadd_ps(get_m128(i), rhs.get_m128(i), mm);
@@ -151,7 +152,7 @@ public:
 #define MATH_OPERATOR(OP, name)\
 VFlt<Size> operator OP(const VFlt<Size>& rhs)const{\
 	VFlt ret;\
-	for(int i=0;i<int64_t(Size) - 3;i+=4){\
+	for(uint32_t i=0;i<simd_loop_end;i+=4){\
 		__m128 mm = _mm_##name##_ps(_mm_load_ps(w + i), _mm_load_ps(rhs.w + i));\
 		_mm_store_ps(ret.w + i, mm);\
 	}\
@@ -161,7 +162,7 @@ VFlt<Size> operator OP(const VFlt<Size>& rhs)const{\
 	return ret;\
 }\
 void operator OP##=(const VFlt<Size>& rhs){\
-	for(int i=0;i<int64_t(Size) - 3;i+=4){\
+	for(uint32_t i=0;i<simd_loop_end;i+=4){\
 		__m128 mm = _mm_##name##_ps(_mm_load_ps(w + i), _mm_load_ps(rhs.w + i));\
 		_mm_store_ps(w + i, mm);\
 	}\
@@ -177,17 +178,18 @@ void operator OP##=(const VFlt<Size>& rhs){\
 	};
 	template<size_t Size>
 	class VInt{
+		static constexpr uint32_t simd_loop_end = Size - Size % 4;
 		alignas(32) int32_t w[Size];
-		__m128 get_si128(int idx)const{
+		__m128i get_si128(uint32_t idx)const{
 			assert(idx + 3 < Size);
 			assert(idx % 4 == 0);
-			return _mm_load_si128((const __m128i*)(w + idx));
+			return _mm_load_si128(reinterpret_cast<const __m128i*>(w + idx));
 		}
 	public:
 		VInt(){}
 		VInt(int x){
-			for(int i=0;i<int64_t(Size) - 3;i+=4){
-				_mm_store_si128((__m128i*)(w + i), _mm_set1_epi32(x));
+			for(int32_t i=0;i<simd_loop_end;i+=4){
+				_mm_store_si128(reinterpret_cast<__m128i*>(w + i), _mm_set1_epi32(x));
 			}
 			if(Size % 4 >= 3)w[Size - 3] = x;
 			if(Size % 4 >= 2)w[Size - 2] = x;
@@ -205,16 +207,16 @@ void operator OP##=(const VFlt<Size>& rhs){\
 			return w[idx];
 		}
 		void clear(){
-			for(int i=0;i<int64_t(Size) - 3;i+=4){
-				_mm_store_si128((__m128i*)(w + i), _mm_setzero_si128());
+			for(uint32_t i=0;i<simd_loop_end;i+=4){
+				_mm_store_si128(reinterpret_cast<__m128i*>(w + i), _mm_setzero_si128());
 			}
 			if(Size % 4 >= 3)w[Size - 3] = 0;
 			if(Size % 4 >= 2)w[Size - 2] = 0;
 			if(Size % 4 >= 1)w[Size - 1] = 0;
 		}
 		void operator=(const VInt& rhs){
-			for(int i=0;i<int64_t(Size) - 3;i+=4){
-				_mm_store_si128((__m128i*)(w + i), rhs.get_si128(i));
+			for(uint32_t i=0;i<simd_loop_end;i+=4){
+				_mm_store_si128(reinterpret_cast<__m128i*>(w + i), rhs.get_si128(i));
 			}
 			if(Size % 4 >= 3)w[Size - 3] = rhs.w[Size - 3];
 			if(Size % 4 >= 2)w[Size - 2] = rhs.w[Size - 2];
@@ -223,9 +225,9 @@ void operator OP##=(const VFlt<Size>& rhs){\
 #define MATH_OPERATOR(OP, name)\
 VInt<Size> operator OP(const VInt<Size>& rhs)const{\
 	VInt<Size> ret;\
-	for(int i=0;i<int64_t(Size) - 3;i+=4){\
-		__m128 mm = _mm_##name##_epi32(get_si128(i), rhs.get_si128(i));\
-		_mm_store_si128((__m128i*)(ret.w + i), mm);\
+	for(uint32_t i=0;i<int64_t(Size) - 3;i+=4){\
+		__m128i mm = _mm_##name##_epi32(get_si128(i), rhs.get_si128(i));\
+		_mm_store_si128(reinterpret_cast<__m128i*>(ret.w + i), mm);\
 	}\
 	if(Size % 4 >= 3)ret.w[Size - 3] = w[Size - 3] OP rhs.w[Size - 3];\
 	if(Size % 4 >= 2)ret.w[Size - 2] = w[Size - 2] OP rhs.w[Size - 2];\
@@ -233,9 +235,9 @@ VInt<Size> operator OP(const VInt<Size>& rhs)const{\
 	return ret;\
 }\
 void operator OP##=(const VInt<Size>& rhs){\
-	for(int i=0;i<int64_t(Size) - 3;i+=4){\
-		__m128 mm = _mm_##name##_epi32(get_si128(i), rhs.get_si128(i));\
-		_mm_store_si128((__m128i*)(w + i), mm);\
+	for(uint32_t i=0;i<int64_t(Size) - 3;i+=4){\
+		__m128i mm = _mm_##name##_epi32(get_si128(i), rhs.get_si128(i));\
+		_mm_store_si128(reinterpret_cast<__m128i*>(w + i), mm);\
 	}\
 	if(Size % 4 >= 3)w[Size - 3] OP##= rhs.w[Size - 3];\
 	if(Size % 4 >= 2)w[Size - 2] OP##= rhs.w[Size - 2];\
