@@ -27,25 +27,30 @@ namespace sheena{
 		Array(){}
 		explicit Array(const std::initializer_list<Ty> init){
 			auto itr = init.begin();
-			for(int i=0;i<Size && i < init.size();i++){
+			for(size_t i=0;i<Size && i < init.size();i++){
 				array_[i] = *itr;
 				itr++;
 			}
 		}
+		Array(const Array<Ty, Size>& base){
+			(*this) = base;
+		}
 		static size_t size(){return Size;}
-		const Ty& operator[](int idx)const{
-			assert(idx >= 0);
+		const Ty& operator[](size_t idx)const{
 			assert(idx < Size);
 			return array_[idx];
 		}
-		Ty& operator[](int idx){
-			assert(idx >= 0);
+		Ty& operator[](size_t idx){
 			assert(idx < Size);
 			return array_[idx];
 		}
 		void operator=(const Array<Ty, Size> & a){
-			for(int i=0;i<Size;i++)(*this)[i] = a[i];
+			for(size_t i=0;i<Size;i++)(*this)[i] = a[i];
 		}
+		const Ty* begin()const{return array_;}
+		const Ty* end()const{return array_ + Size;}
+		Ty* begin(){return array_;}
+		Ty* end(){return array_ + Size;}
 	};
 	template<typename Ty, size_t Sz1, size_t Sz2>
 	using Array2d = Array<Array<Ty, Sz2>, Sz1>;
@@ -61,6 +66,9 @@ namespace sheena{
 		ArrayAlloc(size_t sz):array_(nullptr), size_(0){
 			resize(sz);
 		}
+		ArrayAlloc(const ArrayAlloc<Ty>& base):array_(nullptr), size_(0){
+			(*this) = base;
+		}
 		~ArrayAlloc(){
 			if(array_ != nullptr)delete[] array_;
 		}
@@ -73,19 +81,23 @@ namespace sheena{
 		}
 		size_t size()const{return size_;}
 
-		const Ty& operator[](int idx)const{
+		const Ty& operator[](size_t idx)const{
 			assert(idx >= 0);
 			assert(idx < size_);
 			return array_[idx];
 		}
-		Ty& operator[](int idx){
+		Ty& operator[](size_t idx){
 			assert(idx >= 0);
 			assert(idx < size_);
 			return array_[idx];
 		}
 		void operator=(const ArrayAlloc<Ty> & a){
 			if(a.size() != size_)resize(a.size());
-			for(int i=0;i<size_;i++)(*this)[i] = a[i];
+			for(size_t i=0;i<size_;i++)(*this)[i] = a[i];
 		}
+		const Ty* begin()const{return array_;}
+		const Ty* end()const{return array_ + size_;}
+		Ty* begin(){return array_;}
+		Ty* end(){return array_ + size_;}
 	};
 }

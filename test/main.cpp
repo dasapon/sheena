@@ -74,26 +74,26 @@ template<size_t Size>
 static void test_simd_sub(){
 	//浮動小数点演算のテスト
 	sheena::VFlt<Size> v;
-	for(int i=0;i<Size;i++){
+	for(size_t i=0;i<Size;i++){
 		v[i] = i;
 	}
 	
 	sheena::VFlt<Size> v2(v);
 	v += v2;
-	for(int i=0;i<Size;i++){
+	for(size_t i=0;i<Size;i++){
 		ok_if_equal(v[i], float(i + i));
 	}
 	float ip = v2.inner_product(v2);
 	float ip_ = 0;
-	for(int i=0;i<Size;i++)ip_ += i * i;
+	for(size_t i=0;i<Size;i++)ip_ += i * i;
 	ok_if_equal(ip, ip_);
 	//整数演算のテスト
 	sheena::VInt<Size> vi;
-	for(int i=0;i<Size;i++)vi[i] = i;
+	for(size_t i=0;i<Size;i++)vi[i] = i;
 	sheena::VInt<Size> vi2(vi);
 	vi *= vi2;
-	for(int i=0;i<Size;i++){
-		ok_if_true(vi[i] == i * i);
+	for(size_t i=0;i<Size;i++){
+		ok_if_true(vi[i] == int(i) * int(i));
 	}
 }
 static void test_simd(){
@@ -122,7 +122,7 @@ public:
 			return 0;
 		}
 		n = ActionDim;
-		for(int i=0;i<ActionDim;i++){
+		for(size_t i=0;i<ActionDim;i++){
 			actions[i] = i + 1;
 			p[i] = 1.0 / ActionDim;
 		}

@@ -177,10 +177,10 @@ namespace sheena::mcts{
 				}
 				return;
 			};
-			for(int i=0;i<threads.size();i++){
+			for(size_t i=0;i<threads.size();i++){
 				threads[i] = std::thread(proce, i);
 			}
-			for(int i=0;i<threads.size();i++){
+			for(size_t i=0;i<threads.size();i++){
 				threads[i].join();
 			}
 		}
