@@ -131,7 +131,7 @@ public:
 		float inner_product(const VFlt<Size>& rhs)const{
 			float ret = 0;
 			if(Size >= 4){
-				__m128 mm;
+				__m128 mm = _mm_setzero_ps();
 				for(size_t i=0;i < simd_loop_end;i+=4){
 #ifdef FMA_ENABLE
 				//FMAを用いた実装
