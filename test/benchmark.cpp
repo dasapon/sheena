@@ -5,22 +5,22 @@
 
 std::mt19937 mt;
 std::normal_distribution<double> dist;
+static float result;
 template<size_t size>
-float ip_test(){
+void ip_test(){
 	sheena::VFlt<size> v1, v2;
 	for(int i=0;i<size;i++){
 		v1[i] = dist(mt);
 		v2[i] = dist(mt);
 	}
 	constexpr size_t loop = (2ULL << 34) / size;
-	float ret = 0;
 	sheena::Stopwatch stopwatch;
 	for(size_t i=0; i<loop;i++){
-		ret += v1.inner_product(v2);
+		result += v1.inner_product(v2);
 	}
 	uint64_t msec = stopwatch.msec();
 	std::cout << "size = " << size << " " << msec << "[msec]" << double(loop * size) * 2 / msec / 1000 / 1000 << "G flops" << std::endl;
-	return ret;
+	return;
 }
 int main(void){
 	ip_test<512>();

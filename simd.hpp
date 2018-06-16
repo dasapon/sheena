@@ -190,9 +190,9 @@ public:
 				mm = _mm256_add_ps(mm, _mm256_mul_ps(_mm256_load_ps(w + i), _mm256_load_ps(rhs.w + i)));
 #endif
 				}
-				alignas(32) float v[8];
+				alignas(64) float v[8];
 				_mm256_store_ps(v, mm);
-				ret = v[0] + v[1] + v[2] + v[3] + v[4] + v[5] + v[6] + v[7];
+				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
 			}
 #else
 			if(Size >= 4){
@@ -230,7 +230,7 @@ public:
 				}
 				alignas(32) float v[4];
 				_mm_store_ps(v, mm);
-				ret = v[0] + v[1] + v[2] + v[3];
+				ret = (v[0] + v[1]) + (v[2] + v[3]);
 			}
 #endif
 			if(Size != simd_loop_end){
