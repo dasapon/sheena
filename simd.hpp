@@ -288,7 +288,7 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		}
 		static constexpr size_t inc = 8;
 #else
-	class VInt{
+	class alignas(16) VInt{
 		static constexpr size_t simd_loop_end = Size - Size % 4;
 		using __MSIMD = __m128i;
 		__MSIMD load(size_t idx)const{
@@ -296,7 +296,7 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		}
 		static constexpr size_t inc = 4;
 #endif
-		alignas(32) int32_t w[Size];
+		int32_t w[Size];
 	public:
 		VInt(){}
 		VInt(int x){
