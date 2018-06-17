@@ -85,6 +85,12 @@ public:
 	class alignas(64) VFlt{
 		static constexpr size_t simd_loop_end = Size - Size % 8;
 		using __MSIMD = __m256;
+		void *operator new(size_t sz){
+			return _mm_malloc(sz, alignof(VFlt<Size>));
+		}
+		void operator delete(void *p){
+			return _mm_free(p);
+		}
 #else
 	class alignas(32) VFlt{
 		static constexpr size_t simd_loop_end = Size - Size % 4;
@@ -286,13 +292,19 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		__MSIMD load(size_t idx)const{
 			return _mm256_load_si256(reinterpret_cast<const __MSIMD*>(w + idx));
 		}
+		void *operator new(size_t sz){
+			return _mm_malloc(sz, alignof(VInt<Size>));
+		}
+		void operator delete(void *p){
+			return _mm_free(p);
+		}
 		static constexpr size_t inc = 8;
 #else
 	class alignas(32) VInt{
 		static constexpr size_t simd_loop_end = Size - Size % 4;
 		using __MSIMD = __m128i;
 		__MSIMD load(size_t idx)const{
-			return _mm128_load_si128(reinterpret_cast<const __MSIMD*>(w + idx));
+			return _mm_load_si128(reinterpret_cast<const __MSIMD*>(w + idx));
 		}
 		static constexpr size_t inc = 4;
 #endif
@@ -328,7 +340,7 @@ void operator OP##=(const VFlt<Size>& rhs){\
 #ifdef SIMD256_ENABLE
 				_mm256_store_si256(reinterpret_cast<__MSIMD*>(w + i), _mm256_setzero_si256());
 #else
-				_mm128_store_si128(reinterpret_cast<__MSIMD*>(w + i), _mm_setzero_si128());
+				_mm_store_si128(reinterpret_cast<__MSIMD*>(w + i), _mm_setzero_si128());
 #endif
 			}
 			if(Size != simd_loop_end){
@@ -340,7 +352,7 @@ void operator OP##=(const VFlt<Size>& rhs){\
 #ifdef SIMD256_ENABLE
 				_mm256_store_si256(reinterpret_cast<__MSIMD*>(w + i), rhs.load(i));
 #else
-				_mm128_store_si128(reinterpret_cast<__MSIMD*>(w + i), rhs.load(i));
+				_mm_store_si128(reinterpret_cast<__MSIMD*>(w + i), rhs.load(i));
 #endif
 			}
 			if(Size != simd_loop_end){
