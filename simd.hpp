@@ -162,7 +162,7 @@ public:
 				//インライン展開
 				size_t i = 0;
 				if(Size >= 32){
-					__MSIMD mm2, mm3, mm4;
+					__MSIMD mm2 = _mm256_setzero_ps(), mm3 = _mm256_setzero_ps(), mm4 = _mm256_setzero_ps();
 					const size_t e = Size - Size % 32;
 					for(;i < e;i+=32){
 #ifdef FMA_ENABLE
@@ -200,7 +200,7 @@ public:
 				//インライン展開
 				size_t i = 0;
 				if(Size >= 16){
-					__MSIMD mm2, mm3, mm4;
+					__MSIMD mm2 = _mm_setzero_ps(), mm3 = _mm_setzero_ps(), mm4 = _mm_setzero_ps();
 					const size_t e = Size - Size % 16;
 					for(;i < e;i+=16){
 #ifdef FMA_ENABLE
