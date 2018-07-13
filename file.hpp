@@ -21,5 +21,6 @@ namespace sheena{
 		for(const auto& str : buffer){
 			lines.push_back(split_string(str, delim));
 		}
+		return true;
 	}
 }
