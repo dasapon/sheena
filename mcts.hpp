@@ -43,6 +43,9 @@ namespace sheena::mcts{
 				reward += r - vl_reward * vl;
 				played += 1 - vl;
 			}
+			void clear(){
+				reward = played = 0;
+			}
 			double Q()const{
 				if(played == 0)return 0;
 				else return reward / played;
@@ -72,6 +75,9 @@ namespace sheena::mcts{
 				key_ = state.key();
 				total_played = 0;
 				turn_player = state.get_actions(n_action, actions, prior_probability, thread_id);
+				for(int i=0;i<n_action;i++){
+					edges[i].clear();
+				}
 				if(n_action == 0){
 					//終端ノードは置換表には不要
 					invalidate(key_);
