@@ -19,6 +19,8 @@ namespace sheena::mcts{
 	//戻り値は手番プレイヤの番号(0, 1, ... NPlayer-1)
 	//また、ゲーム終了時には可能な行動数を0として返す
 	//int get_actions(int&, sheena::Array<Action, MaxAction>&, sheena::Array<float, MaxAction>&, size_t thread_id)const;
+	//終端に達しているか否かを判定する
+	//bool terminate(sheena::Array<double, NPlayer>&)const;
 	//局面のハッシュ値を返す
 	//uint64_t key()const;
 	enum MCTS_TYPE{
@@ -157,7 +159,7 @@ namespace sheena::mcts{
 			}
 			return nullptr;
 		}
-		void search_rec(State& state, Array<double, NPlayer>& reward, bool expand, size_t thread_id);
+		void search_rec(State& state, Array<double, NPlayer>& reward, bool expand, size_t thread_id, int ply);
 	public:
 		Searcher():explore_coefficient(1.0), expansion_threshold(0), virtual_loss(3), vl_reward(0), threads(1){
 			generation_ = 1;
@@ -178,7 +180,7 @@ namespace sheena::mcts{
 						if(cnt < po)cnt++;
 						else break;
 					}
-					search_rec(state, reward, true, thread_id);
+					search_rec(state, reward, true, thread_id, 0);
 					if(stopwatch.msec() >= time_limit)break;
 				}
 				return;
@@ -234,7 +236,7 @@ namespace sheena::mcts{
 	};
 	template<MCTS_TYPE type, typename State, typename Action, size_t NPlayer, size_t MaxAction>
 	void Searcher<type, State, Action, NPlayer, MaxAction>::search_rec(
-		State& state, Array<double, NPlayer>& reward, bool expand, size_t thread_id){
+	State& state, Array<double, NPlayer>& reward, bool expand, size_t thread_id, int ply){
 		uint64_t tt_idx = state.key() % tt.size();
 		//ロックをかけ, Nodeを取得
 		std::unique_lock<std::mutex> lock(tt[tt_idx].second);
@@ -242,6 +244,10 @@ namespace sheena::mcts{
 		if(node == nullptr){
 			//playout結果を返す
 			state.playout(reward, thread_id);
+			return;
+		}
+		//終局していればその結果を返す
+		if(state.terminate(reward)){
 			return;
 		}
 		//UCTで着手を選択
@@ -252,7 +258,7 @@ namespace sheena::mcts{
 		//ロックを解除し, 子ノードへ
 		lock.unlock();
 		state.act(action);
-		search_rec(state, reward, expand_child, thread_id);
+		search_rec(state, reward, expand_child, thread_id, ply + 1);
 		//プレイアウト結果を反映
 		lock.lock();
 		node->update(action_idx, reward, virtual_loss, vl_reward);
