@@ -11,7 +11,7 @@ namespace sheena::mcts{
 	//コピーコンストラクタ
 	//State(const State&)
 	//actionを実行し,状態遷移する
-	//void act(Action)
+	//void act(Action, size_t thread_id)
 	//playoutを行い, 報酬を得る
 	//thread_idはそのplayoutを呼び出したスレッドの番号
 	//void playout(sheena::Array<double, NPlayer>&, size_t thread_id)
@@ -20,7 +20,7 @@ namespace sheena::mcts{
 	//また、ゲーム終了時には可能な行動数を0として返す
 	//int get_actions(int&, sheena::Array<Action, MaxAction>&, sheena::Array<float, MaxAction>&, size_t thread_id)const;
 	//終端に達しているか否かを判定する
-	//bool terminate(sheena::Array<double, NPlayer>&)const;
+	//bool terminate(sheena::Array<double, NPlayer>&, size_t thread_id)const;
 	//局面のハッシュ値を返す
 	//uint64_t key()const;
 	enum MCTS_TYPE{
@@ -247,7 +247,7 @@ namespace sheena::mcts{
 			return;
 		}
 		//終局していればその結果を返す
-		if(state.terminate(reward)){
+		if(state.terminate(reward, thread_id)){
 			return;
 		}
 		//UCTで着手を選択
@@ -257,7 +257,7 @@ namespace sheena::mcts{
 		assert(action_idx >= 0);
 		//ロックを解除し, 子ノードへ
 		lock.unlock();
-		state.act(action);
+		state.act(action, thread_id);
 		search_rec(state, reward, expand_child, thread_id, ply + 1);
 		//プレイアウト結果を反映
 		lock.lock();
