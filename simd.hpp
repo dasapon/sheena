@@ -81,12 +81,11 @@ public:
 	};
 
 	template<size_t Size>
+	class alignas(16) VFlt{
 #ifdef SIMD256_ENABLE
-	class alignas(32) VFlt{
 		static constexpr size_t simd_loop_end = Size - Size % 8;
 		using __MSIMD = __m256;
 #else
-	class alignas(16) VFlt{
 		static constexpr size_t simd_loop_end = Size - Size % 4;
 		using __MSIMD = __m128;
 #endif
@@ -97,7 +96,7 @@ public:
 #ifdef SIMD256_ENABLE
 			__MSIMD mm = _mm256_set1_ps(f);
 			for(size_t i = 0;i < simd_loop_end;i+=8){
-				_mm256_store_ps(w + i, mm);
+				_mm256_storeu_ps(w + i, mm);
 			}
 #else
 			__MSIMD mm = _mm_set1_ps(f);
@@ -124,7 +123,7 @@ public:
 		void clear(){
 #ifdef SIMD256_ENABLE
 			for(size_t i = 0;i < simd_loop_end;i+=8){
-				_mm256_store_ps(w + i, _mm256_setzero_ps());
+				_mm256_storeu_ps(w + i, _mm256_setzero_ps());
 			}
 #else
 			for(size_t i = 0;i < simd_loop_end;i+=4){
@@ -140,7 +139,7 @@ public:
 		void operator=(const VFlt<Size>& rhs){
 #ifdef SIMD256_ENABLE
 			for(size_t i = 0;i < simd_loop_end;i+=8){
-				_mm256_store_ps(w + i, _mm256_load_ps(rhs.w + i));
+				_mm256_storeu_ps(w + i, _mm256_loadu_ps(rhs.w + i));
 			}
 #else
 			for(size_t i = 0;i < simd_loop_end;i+=4){
@@ -167,15 +166,15 @@ public:
 					for(;i < e;i+=32){
 #ifdef FMA_ENABLE
 						//FMAを用いた実装
-						mm = _mm256_fmadd_ps(_mm256_load_ps(w + i), _mm256_load_ps(rhs.w + i), mm);
-						mm2 = _mm256_fmadd_ps(_mm256_load_ps(w + i + 8), _mm256_load_ps(rhs.w + i + 8), mm2);
-						mm3 = _mm256_fmadd_ps(_mm256_load_ps(w + i + 16), _mm256_load_ps(rhs.w + i + 18), mm3);
-						mm4 = _mm256_fmadd_ps(_mm256_load_ps(w + i + 24), _mm256_load_ps(rhs.w + i + 24), mm4);
+						mm = _mm256_fmadd_ps(_mm256_loadu_ps(w + i), _mm256_loadu_ps(rhs.w + i), mm);
+						mm2 = _mm256_fmadd_ps(_mm256_loadu_ps(w + i + 8), _mm256_loadu_ps(rhs.w + i + 8), mm2);
+						mm3 = _mm256_fmadd_ps(_mm256_loadu_ps(w + i + 16), _mm256_loadu_ps(rhs.w + i + 18), mm3);
+						mm4 = _mm256_fmadd_ps(_mm256_loadu_ps(w + i + 24), _mm256_loadu_ps(rhs.w + i + 24), mm4);
 #else
-						mm = _mm256_add_ps(mm, _mm256_mul_ps(_mm256_load_ps(w + i), _mm256_load_ps(rhs.w + i)));
-						mm2 = _mm256_add_ps(mm2, _m256_mul_ps(_mm256_load_ps(w + i + 8), _mm256_load_ps(rhs.w + i + 8)));
-						mm3 = _mm256_add_ps(mm3, _mm256_mul_ps(_mm256_load_ps(w + i + 16), _mm256_load_ps(rhs.w + i + 16)));
-						mm4 = _mm256_add_ps(mm4, _mm256_mul_ps(_mm256_load_ps(w + i + 24), _mm256_load_ps(rhs.w + i + 24)));
+						mm = _mm256_add_ps(mm, _mm256_mul_ps(_mm256_loadu_ps(w + i), _mm256_loadu_ps(rhs.w + i)));
+						mm2 = _mm256_add_ps(mm2, _m256_mul_ps(_mm256_loadu_ps(w + i + 8), _mm256_loadu_ps(rhs.w + i + 8)));
+						mm3 = _mm256_add_ps(mm3, _mm256_mul_ps(_mm256_loadu_ps(w + i + 16), _mm256_loadu_ps(rhs.w + i + 16)));
+						mm4 = _mm256_add_ps(mm4, _mm256_mul_ps(_mm256_loadu_ps(w + i + 24), _mm256_loadu_ps(rhs.w + i + 24)));
 #endif
 					}
 					mm = _mm256_add_ps(mm, mm2);
@@ -185,9 +184,9 @@ public:
 				for(;i < simd_loop_end;i+=8){
 #ifdef FMA_ENABLE
 				//FMAを用いた実装
-				mm = _mm256_fmadd_ps(_mm256_load_ps(w + i), _mm256_load_ps(rhs.w + i), mm);
+				mm = _mm256_fmadd_ps(_mm256_loadu_ps(w + i), _mm256_loadu_ps(rhs.w + i), mm);
 #else
-				mm = _mm256_add_ps(mm, _mm256_mul_ps(_mm256_load_ps(w + i), _mm256_load_ps(rhs.w + i)));
+				mm = _mm256_add_ps(mm, _mm256_mul_ps(_mm256_loadu_ps(w + i), _mm256_loadu_ps(rhs.w + i)));
 #endif
 				}
 				alignas(32) float v[8];
@@ -266,10 +265,10 @@ void operator OP##=(const VFlt<Size>& rhs){\
 	}\
 }
 #ifdef SIMD256_ENABLE
-		MATH_OPERATOR(_mm256_load_ps, _mm256_store_ps, +, _mm256_add_ps, 8);
-		MATH_OPERATOR(_mm256_load_ps, _mm256_store_ps, -, _mm256_sub_ps, 8);
-		MATH_OPERATOR(_mm256_load_ps, _mm256_store_ps, *, _mm256_mul_ps, 8);
-		MATH_OPERATOR(_mm256_load_ps, _mm256_store_ps, /, _mm256_div_ps, 8);
+		MATH_OPERATOR(_mm256_loadu_ps, _mm256_storeu_ps, +, _mm256_add_ps, 8);
+		MATH_OPERATOR(_mm256_loadu_ps, _mm256_storeu_ps, -, _mm256_sub_ps, 8);
+		MATH_OPERATOR(_mm256_loadu_ps, _mm256_storeu_ps, *, _mm256_mul_ps, 8);
+		MATH_OPERATOR(_mm256_loadu_ps, _mm256_storeu_ps, /, _mm256_div_ps, 8);
 #else
 		MATH_OPERATOR(_mm_load_ps, _mm_store_ps, +, _mm_add_ps, 4);
 		MATH_OPERATOR(_mm_load_ps, _mm_store_ps, -, _mm_sub_ps, 4);
@@ -279,16 +278,15 @@ void operator OP##=(const VFlt<Size>& rhs){\
 #undef MATH_OPERATOR
 	};
 	template<size_t Size>
+	class alignas(16) VInt{
 #ifdef SIMD256_ENABLE
-	class alignas(32) VInt{
 		static constexpr size_t simd_loop_end = Size - Size % 8;
 		using __MSIMD = __m256i;
 		__MSIMD load(size_t idx)const{
-			return _mm256_load_si256(reinterpret_cast<const __MSIMD*>(w + idx));
+			return _mm256_loadu_si256(reinterpret_cast<const __MSIMD*>(w + idx));
 		}
 		static constexpr size_t inc = 8;
 #else
-	class alignas(16) VInt{
 		static constexpr size_t simd_loop_end = Size - Size % 4;
 		using __MSIMD = __m128i;
 		__MSIMD load(size_t idx)const{
@@ -302,7 +300,7 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		VInt(int x){
 			for(size_t i=0;i<simd_loop_end;i+=inc){
 #ifdef SIMD256_ENABLE
-				_mm256_store_si256(reinterpret_cast<__MSIMD*>(w + i), _mm256_set1_epi32(x));
+				_mm256_storeu_si256(reinterpret_cast<__MSIMD*>(w + i), _mm256_set1_epi32(x));
 #else
 				_mm_store_si128(reinterpret_cast<__MSIMD*>(w + i), _mm_set1_epi32(x));
 #endif
@@ -326,7 +324,7 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		void clear(){
 			for(size_t i=0;i<simd_loop_end;i+=inc){
 #ifdef SIMD256_ENABLE
-				_mm256_store_si256(reinterpret_cast<__MSIMD*>(w + i), _mm256_setzero_si256());
+				_mm256_storeu_si256(reinterpret_cast<__MSIMD*>(w + i), _mm256_setzero_si256());
 #else
 				_mm_store_si128(reinterpret_cast<__MSIMD*>(w + i), _mm_setzero_si128());
 #endif
@@ -338,7 +336,7 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		void operator=(const VInt& rhs){
 			for(size_t i=0;i<simd_loop_end;i+=inc){
 #ifdef SIMD256_ENABLE
-				_mm256_store_si256(reinterpret_cast<__MSIMD*>(w + i), rhs.load(i));
+				_mm256_storeu_si256(reinterpret_cast<__MSIMD*>(w + i), rhs.load(i));
 #else
 				_mm_store_si128(reinterpret_cast<__MSIMD*>(w + i), rhs.load(i));
 #endif
@@ -373,12 +371,12 @@ void operator OP##=(const VInt<Size>& rhs){\
 	}\
 }
 #ifdef SIMD256_ENABLE
-		MATH_OPERATOR(_mm256_store_si256, +, _mm256_add_epi32);
-		MATH_OPERATOR(_mm256_store_si256, -, _mm256_sub_epi32);
-		MATH_OPERATOR(_mm256_store_si256, *, _mm256_mullo_epi32);
-		MATH_OPERATOR(_mm256_store_si256, &, _mm256_and_si256);
-		MATH_OPERATOR(_mm256_store_si256, |, _mm256_or_si256);
-		MATH_OPERATOR(_mm256_store_si256, ^, _mm256_xor_si256);
+		MATH_OPERATOR(_mm256_storeu_si256, +, _mm256_add_epi32);
+		MATH_OPERATOR(_mm256_storeu_si256, -, _mm256_sub_epi32);
+		MATH_OPERATOR(_mm256_storeu_si256, *, _mm256_mullo_epi32);
+		MATH_OPERATOR(_mm256_storeu_si256, &, _mm256_and_si256);
+		MATH_OPERATOR(_mm256_storeu_si256, |, _mm256_or_si256);
+		MATH_OPERATOR(_mm256_storeu_si256, ^, _mm256_xor_si256);
 #else
 		MATH_OPERATOR(_mm_store_si128, +, _mm_add_epi32);
 		MATH_OPERATOR(_mm_store_si128, -, _mm_sub_epi32);
