@@ -14,13 +14,4 @@ namespace sheena{
 		file.close();
 		return true;
 	}
-	template<char delim>
-	bool read_separated_values(std::string file_name, std::vector<std::vector<std::string>>& lines){
-		std::vector<std::string> buffer;
-		if(!read_file(file_name, buffer))return false;
-		for(const auto& str : buffer){
-			lines.push_back(split_string(str, delim));
-		}
-		return true;
-	}
 }
