@@ -111,10 +111,17 @@ class State{
 	int turn;
 public:
 	void playout(sheena::Array<double, NPlayer>& reward, size_t thread_id){
-		while(number < 80){
+		while(!terminate(reward)){
 			act(mt[thread_id]() % ActionDim + 1);
 		}
-		reward[0] = 20.0 / turn;
+	}
+
+	bool terminate(sheena::Array<double, NPlayer>& reward)const{
+		if(number >= 80){
+			reward[0] = 20.0 / turn;
+			return true;
+		}
+		return false;
 	}
 	int get_actions(int& n, sheena::Array<Action, ActionDim>& actions, sheena::Array<float, ActionDim>& p, size_t thread_id)const{
 		if(number >= 80){
