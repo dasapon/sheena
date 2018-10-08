@@ -276,6 +276,46 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		MATH_OPERATOR(_mm_load_ps, _mm_store_ps, /, _mm_div_ps, 4);
 #endif
 #undef MATH_OPERATOR
+		void fmadd(const VFlt<Size>& v1, const VFlt<Size>& v2){
+#ifdef FMA_ENABLE
+#ifdef SIMD256_ENABLE
+			for(size_t i=0;i<simd_loop_end;i+=8){
+				_mm256_storeu_ps(w + i, _mm256_fmadd_ps(_mm256_loadu_ps(v1.w + i), _mm256_loadu_ps(v2.w + i), _mm256_loadu_ps(w + i)));
+			}
+#else
+			for(size_t i=0;i<simd_loop_end;i+=4){
+				_mm_store_ps(w + i, _mm_fmadd_ps(_mm_load_ps(v1.w + i), _mm_load_ps(v2.w + i), _mm_load_ps(w + i)));
+			}
+#endif
+			if(Size != simd_loop_end){
+				for(size_t i=simd_loop_end;i<Size;i++){
+					w[i] = std::fma(v1.w[i], v2.w[i], w[i]);
+				}
+			}
+#else
+			operator+=(v1 * v2);
+#endif
+		}
+		void fmsub(const VFlt<Size>& v1, const VFlt<Size>& v2){
+#ifdef FMA_ENABLE
+#ifdef SIMD256_ENABLE
+			for(size_t i=0;i<simd_loop_end;i+=8){
+				_mm256_storeu_ps(w + i, _mm256_fnmadd_ps(_mm256_loadu_ps(v1.w + i), _mm256_loadu_ps(v2.w + i), _mm256_loadu_ps(w + i)));
+			}
+#else
+			for(size_t i=0;i<simd_loop_end;i+=4){
+				_mm_store_ps(w + i, _mm_fnmadd_ps(_mm_load_ps(v1.w + i), _mm_load_ps(v2.w + i), _mm_load_ps(w + i)));
+			}
+#endif
+			if(Size != simd_loop_end){
+				for(size_t i=simd_loop_end;i<Size;i++){
+					w[i] = std::fma(-v1.w[i], v2.w[i], w[i]);
+				}
+			}
+#else
+			operator-=(v1 * v2);
+#endif
+		}
 	};
 	template<size_t Size>
 	class alignas(16) VInt{
