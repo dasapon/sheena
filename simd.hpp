@@ -83,27 +83,46 @@ public:
 	template<size_t Size>
 	class alignas(16) VFlt{
 #ifdef SIMD256_ENABLE
-		static constexpr size_t simd_loop_end = Size - Size % 8;
+		static constexpr size_t ways = 8;
 		using __MSIMD = __m256;
+#define ADD_PS _mm256_add_ps
+#define SUB_PS _mm256_sub_ps
+#define MUL_PS _mm256_mul_ps
+#define DIV_PS _mm256_div_ps
+#define FMADD_PS _mm256_fmadd_ps
+#define SET1_PS _mm256_set1_ps
+#define LOAD_PS _mm256_loadu_ps
+#define STORE_PS _mm256_storeu_ps
+#define SETZERO_PS _mm256_setzero_ps
 #else
-		static constexpr size_t simd_loop_end = Size - Size % 4;
+		static constexpr size_t ways = 4;
 		using __MSIMD = __m128;
+#define ADD_PS _mm_add_ps
+#define SUB_PS _mm_sub_ps
+#define MUL_PS _mm_mul_ps
+#define DIV_PS _mm_div_ps
+#define FMADD_PS _mm_fmadd_ps
+#define SET1_PS _mm_set1_ps
+#define LOAD_PS _mm_load_ps
+#define STORE_PS _mm_store_ps
+#define SETZERO_PS _mm_setzero_ps
 #endif
+		static __MSIMD fma(__MSIMD v1, __MSIMD v2, __MSIMD v3){
+#ifdef FMA_ENABLE
+			return FMADD_PS(v1, v2, v3);
+#else
+			return ADD_PS(MUL_PS(v1, v2), v3);
+#endif
+		}
+		static constexpr size_t simd_loop_end = Size - Size % ways;
 		float w[Size];
 	public:
 		VFlt(){}
 		VFlt(float f){
-#ifdef SIMD256_ENABLE
-			__MSIMD mm = _mm256_set1_ps(f);
-			for(size_t i = 0;i < simd_loop_end;i+=8){
-				_mm256_storeu_ps(w + i, mm);
+			__MSIMD mm = SET1_PS(f);
+			for(size_t i = 0;i < simd_loop_end;i+=ways){
+				STORE_PS(w + i, mm);
 			}
-#else
-			__MSIMD mm = _mm_set1_ps(f);
-			for(size_t i = 0;i < simd_loop_end;i+=4){
-				_mm_store_ps(w + i, mm);
-			}
-#endif
 			if(Size != simd_loop_end){
 				for(size_t i=simd_loop_end; i < Size;i++)w[i] = f;
 			}
@@ -121,15 +140,9 @@ public:
 		}
 		static constexpr size_t size(){return Size;}
 		void clear(){
-#ifdef SIMD256_ENABLE
-			for(size_t i = 0;i < simd_loop_end;i+=8){
-				_mm256_storeu_ps(w + i, _mm256_setzero_ps());
+			for(size_t i = 0;i < simd_loop_end;i+=ways){
+				STORE_PS(w + i, SETZERO_PS());
 			}
-#else
-			for(size_t i = 0;i < simd_loop_end;i+=4){
-				_mm_store_ps(w + i, _mm_setzero_ps());
-			}
-#endif
 			if(Size != simd_loop_end){
 				for(size_t i = simd_loop_end; i<Size; i++){
 					w[i] = 0;
@@ -137,15 +150,9 @@ public:
 			}
 		}
 		void operator=(const VFlt<Size>& rhs){
-#ifdef SIMD256_ENABLE
-			for(size_t i = 0;i < simd_loop_end;i+=8){
-				_mm256_storeu_ps(w + i, _mm256_loadu_ps(rhs.w + i));
+			for(size_t i = 0;i < simd_loop_end;i+=ways){
+				STORE_PS(w + i, LOAD_PS(rhs.w + i));
 			}
-#else
-			for(size_t i = 0;i < simd_loop_end;i+=4){
-				_mm_store_ps(w + i, _mm_load_ps(rhs.w + i));
-			}
-#endif
 			if(Size != simd_loop_end){
 				for(size_t i = simd_loop_end; i<Size; i++){
 					w[i] = rhs.w[i];
@@ -155,78 +162,32 @@ public:
 		//内積計算
 		float inner_product(const VFlt<Size>& rhs)const{
 			float ret = 0;
-#ifdef SIMD256_ENABLE
-			if(Size >= 8){
-				__MSIMD mm = _mm256_setzero_ps();
+			if(Size >= ways){
+				__MSIMD mm = SETZERO_PS();
 				//インライン展開
 				size_t i = 0;
-				if(Size >= 32){
-					__MSIMD mm2 = _mm256_setzero_ps(), mm3 = _mm256_setzero_ps(), mm4 = _mm256_setzero_ps();
-					const size_t e = Size - Size % 32;
-					for(;i < e;i+=32){
-#ifdef FMA_ENABLE
-						//FMAを用いた実装
-						mm = _mm256_fmadd_ps(_mm256_loadu_ps(w + i), _mm256_loadu_ps(rhs.w + i), mm);
-						mm2 = _mm256_fmadd_ps(_mm256_loadu_ps(w + i + 8), _mm256_loadu_ps(rhs.w + i + 8), mm2);
-						mm3 = _mm256_fmadd_ps(_mm256_loadu_ps(w + i + 16), _mm256_loadu_ps(rhs.w + i + 18), mm3);
-						mm4 = _mm256_fmadd_ps(_mm256_loadu_ps(w + i + 24), _mm256_loadu_ps(rhs.w + i + 24), mm4);
-#else
-						mm = _mm256_add_ps(mm, _mm256_mul_ps(_mm256_loadu_ps(w + i), _mm256_loadu_ps(rhs.w + i)));
-						mm2 = _mm256_add_ps(mm2, _m256_mul_ps(_mm256_loadu_ps(w + i + 8), _mm256_loadu_ps(rhs.w + i + 8)));
-						mm3 = _mm256_add_ps(mm3, _mm256_mul_ps(_mm256_loadu_ps(w + i + 16), _mm256_loadu_ps(rhs.w + i + 16)));
-						mm4 = _mm256_add_ps(mm4, _mm256_mul_ps(_mm256_loadu_ps(w + i + 24), _mm256_loadu_ps(rhs.w + i + 24)));
-#endif
+				if(Size >= ways * 4){
+					__MSIMD mm2 = SETZERO_PS(), mm3 = SETZERO_PS(), mm4 = SETZERO_PS();
+					const size_t e = Size - Size % (ways * 4);
+					for(;i < e;i+=ways * 4){
+						mm = fma(LOAD_PS(w + i), LOAD_PS(rhs.w + i), mm);
+						mm2 = fma(LOAD_PS(w + i + ways * 1), LOAD_PS(rhs.w + i + ways * 1), mm2);
+						mm3 = fma(LOAD_PS(w + i + ways * 2), LOAD_PS(rhs.w + i + ways * 2), mm3);
+						mm4 = fma(LOAD_PS(w + i + ways * 3), LOAD_PS(rhs.w + i + ways * 3), mm4);
 					}
-					mm = _mm256_add_ps(mm, mm2);
-					mm3 = _mm256_add_ps(mm3, mm4);
-					mm = _mm256_add_ps(mm, mm3);
+					mm = ADD_PS(mm, mm2);
+					mm3 = ADD_PS(mm3, mm4);
+					mm = ADD_PS(mm, mm3);
 				}
-				for(;i < simd_loop_end;i+=8){
-#ifdef FMA_ENABLE
-				//FMAを用いた実装
-				mm = _mm256_fmadd_ps(_mm256_loadu_ps(w + i), _mm256_loadu_ps(rhs.w + i), mm);
-#else
-				mm = _mm256_add_ps(mm, _mm256_mul_ps(_mm256_loadu_ps(w + i), _mm256_loadu_ps(rhs.w + i)));
-#endif
+				for(;i < simd_loop_end;i+=ways){
+					mm = fma(LOAD_PS(w + i), LOAD_PS(rhs.w + i), mm);
 				}
+#ifdef SIMD256_ENABLE
 				alignas(32) float v[8];
 				_mm256_store_ps(v, mm);
 				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
 			}
 #else
-			if(Size >= 4){
-				__MSIMD mm = _mm_setzero_ps();
-				//インライン展開
-				size_t i = 0;
-				if(Size >= 16){
-					__MSIMD mm2 = _mm_setzero_ps(), mm3 = _mm_setzero_ps(), mm4 = _mm_setzero_ps();
-					const size_t e = Size - Size % 16;
-					for(;i < e;i+=16){
-#ifdef FMA_ENABLE
-						//FMAを用いた実装
-						mm = _mm_fmadd_ps(_mm_load_ps(w + i), _mm_load_ps(rhs.w + i), mm);
-						mm2 = _mm_fmadd_ps(_mm_load_ps(w + i + 4), _mm_load_ps(rhs.w + i + 4), mm2);
-						mm3 = _mm_fmadd_ps(_mm_load_ps(w + i + 8), _mm_load_ps(rhs.w + i + 8), mm3);
-						mm4 = _mm_fmadd_ps(_mm_load_ps(w + i + 12), _mm_load_ps(rhs.w + i + 12), mm4);
-#else
-						mm = _mm_add_ps(mm, _mm_mul_ps(_mm_load_ps(w + i), _mm_load_ps(rhs.w + i)));
-						mm2 = _mm_add_ps(mm2, _mm_mul_ps(_mm_load_ps(w + i + 4), _mm_load_ps(rhs.w + i + 4)));
-						mm3 = _mm_add_ps(mm3, _mm_mul_ps(_mm_load_ps(w + i + 8), _mm_load_ps(rhs.w + i + 8)));
-						mm4 = _mm_add_ps(mm4, _mm_mul_ps(_mm_load_ps(w + i + 12), _mm_load_ps(rhs.w + i + 12)));
-#endif
-					}
-					mm = _mm_add_ps(mm, mm2);
-					mm3 = _mm_add_ps(mm3, mm4);
-					mm = _mm_add_ps(mm, mm3);
-				}
-				for(;i < simd_loop_end;i+=4){
-#ifdef FMA_ENABLE
-				//FMAを用いた実装
-				mm = _mm_fmadd_ps(_mm_load_ps(w + i), _mm_load_ps(rhs.w + i), mm);
-#else
-				mm = _mm_add_ps(mm, _mm_mul_ps(_mm_load_ps(w + i), _mm_load_ps(rhs.w + i)));
-#endif
-				}
 				alignas(16) float v[4];
 				_mm_store_ps(v, mm);
 				ret = (v[0] + v[1]) + (v[2] + v[3]);
@@ -239,12 +200,12 @@ public:
 			}
 			return ret;
 		}
-#define MATH_OPERATOR(LOAD, STORE, OP, OP_NAME, INC)\
+#define MATH_OPERATOR(OP, OP_NAME)\
 VFlt<Size> operator OP(const VFlt<Size>& rhs)const{\
 	VFlt ret;\
-	for(size_t i=0;i<simd_loop_end;i+=INC){\
-		__MSIMD mm = OP_NAME(LOAD(w + i), LOAD(rhs.w + i));\
-		STORE(ret.w + i, mm);\
+	for(size_t i=0;i<simd_loop_end;i+=ways){\
+		__MSIMD mm = OP_NAME(LOAD_PS(w + i), LOAD_PS(rhs.w + i));\
+		STORE_PS(ret.w + i, mm);\
 	}\
 	if(Size != simd_loop_end){\
 		for(size_t i=simd_loop_end;i<Size;i++){\
@@ -254,9 +215,9 @@ VFlt<Size> operator OP(const VFlt<Size>& rhs)const{\
 	return ret;\
 }\
 void operator OP##=(const VFlt<Size>& rhs){\
-	for(size_t i=0;i<simd_loop_end;i+=INC){\
-		__MSIMD mm = OP_NAME(LOAD(w + i), LOAD(rhs.w + i));\
-		STORE(w + i, mm);\
+	for(size_t i=0;i<simd_loop_end;i+=ways){\
+		__MSIMD mm = OP_NAME(LOAD_PS(w + i), LOAD_PS(rhs.w + i));\
+		STORE_PS(w + i, mm);\
 	}\
 	if(Size != simd_loop_end){\
 		for(size_t i=simd_loop_end;i<Size;i++){\
@@ -264,49 +225,30 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		}\
 	}\
 }
-#ifdef SIMD256_ENABLE
-		MATH_OPERATOR(_mm256_loadu_ps, _mm256_storeu_ps, +, _mm256_add_ps, 8);
-		MATH_OPERATOR(_mm256_loadu_ps, _mm256_storeu_ps, -, _mm256_sub_ps, 8);
-		MATH_OPERATOR(_mm256_loadu_ps, _mm256_storeu_ps, *, _mm256_mul_ps, 8);
-		MATH_OPERATOR(_mm256_loadu_ps, _mm256_storeu_ps, /, _mm256_div_ps, 8);
-#else
-		MATH_OPERATOR(_mm_load_ps, _mm_store_ps, +, _mm_add_ps, 4);
-		MATH_OPERATOR(_mm_load_ps, _mm_store_ps, -, _mm_sub_ps, 4);
-		MATH_OPERATOR(_mm_load_ps, _mm_store_ps, *, _mm_mul_ps, 4);
-		MATH_OPERATOR(_mm_load_ps, _mm_store_ps, /, _mm_div_ps, 4);
-#endif
+		MATH_OPERATOR(+, ADD_PS);
+		MATH_OPERATOR(-, SUB_PS);
+		MATH_OPERATOR(*, MUL_PS);
+		MATH_OPERATOR(/, DIV_PS);
 #undef MATH_OPERATOR
 		void fmadd(const VFlt<Size>& v1, const VFlt<Size>& v2){
-#ifdef FMA_ENABLE
-#ifdef SIMD256_ENABLE
-			for(size_t i=0;i<simd_loop_end;i+=8){
-				_mm256_storeu_ps(w + i, _mm256_fmadd_ps(_mm256_loadu_ps(v1.w + i), _mm256_loadu_ps(v2.w + i), _mm256_loadu_ps(w + i)));
+			for(size_t i=0;i<simd_loop_end;i+=ways){
+				STORE_PS(w + i, fma(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
 			}
-#else
-			for(size_t i=0;i<simd_loop_end;i+=4){
-				_mm_store_ps(w + i, _mm_fmadd_ps(_mm_load_ps(v1.w + i), _mm_load_ps(v2.w + i), _mm_load_ps(w + i)));
-			}
-#endif
 			if(Size != simd_loop_end){
 				for(size_t i=simd_loop_end;i<Size;i++){
 					w[i] = std::fma(v1.w[i], v2.w[i], w[i]);
 				}
 			}
-#else
-			operator+=(v1 * v2);
-#endif
 		}
 		void fmsub(const VFlt<Size>& v1, const VFlt<Size>& v2){
 #ifdef FMA_ENABLE
+			for(size_t i=0;i<simd_loop_end;i+=ways){
 #ifdef SIMD256_ENABLE
-			for(size_t i=0;i<simd_loop_end;i+=8){
-				_mm256_storeu_ps(w + i, _mm256_fnmadd_ps(_mm256_loadu_ps(v1.w + i), _mm256_loadu_ps(v2.w + i), _mm256_loadu_ps(w + i)));
-			}
+				STORE_PS(w + i, _mm256_fnmadd_ps(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
 #else
-			for(size_t i=0;i<simd_loop_end;i+=4){
-				_mm_store_ps(w + i, _mm_fnmadd_ps(_mm_load_ps(v1.w + i), _mm_load_ps(v2.w + i), _mm_load_ps(w + i)));
-			}
+				STORE_PS(w + i, _mm_fnmadd_ps(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
 #endif
+			}
 			if(Size != simd_loop_end){
 				for(size_t i=simd_loop_end;i<Size;i++){
 					w[i] = std::fma(-v1.w[i], v2.w[i], w[i]);
@@ -316,6 +258,15 @@ void operator OP##=(const VFlt<Size>& rhs){\
 			operator-=(v1 * v2);
 #endif
 		}
+#undef ADD_PS
+#undef SUB_PS
+#undef MUL_PS
+#undef DIV_PS
+#undef FMADD_PS 
+#undef SET1_PS
+#undef LOAD_PS
+#undef STORE_PS
+#undef SETZERO_PS
 	};
 	template<size_t Size>
 	class alignas(16) VInt{
