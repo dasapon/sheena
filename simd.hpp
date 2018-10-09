@@ -159,6 +159,46 @@ public:
 				}
 			}
 		}
+		//合計値の計算
+		float sum()const{
+			float ret = 0;
+			size_t i = 0;
+			if(Size >= ways){
+				__MSIMD mm = SETZERO_PS();
+				if(Size >= ways * 4){
+					__MSIMD mm2 = SETZERO_PS(), mm3 = SETZERO_PS(), mm4 = SETZERO_PS();
+					const size_t e = Size - Size % (ways * 4);
+					for(;i < e;i+=ways * 4){
+						mm = ADD_PS(LOAD_PS(w + i), mm);
+						mm2 = ADD_PS(LOAD_PS(w + i + ways * 1), mm2);
+						mm3 = ADD_PS(LOAD_PS(w + i + ways * 2), mm3);
+						mm4 = ADD_PS(LOAD_PS(w + i + ways * 3), mm4);
+					}
+					mm = ADD_PS(mm, mm2);
+					mm3 = ADD_PS(mm3, mm4);
+					mm = ADD_PS(mm, mm3);
+				}
+				for(;i < simd_loop_end;i+=ways){
+					mm = ADD_PS(LOAD_PS(w + i), mm);
+				}
+#ifdef SIMD256_ENABLE
+				alignas(32) float v[8];
+				_mm256_store_ps(v, mm);
+				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
+			}
+#else
+				alignas(16) float v[4];
+				_mm_store_ps(v, mm);
+				ret = (v[0] + v[1]) + (v[2] + v[3]);
+			}
+#endif
+			if(Size != simd_loop_end){
+				for(size_t i=simd_loop_end;i<Size;i++){
+					ret += w[i];
+				}
+			}
+			return ret;
+		}
 		//内積計算
 		float inner_product(const VFlt<Size>& rhs)const{
 			float ret = 0;
@@ -203,24 +243,42 @@ public:
 #define MATH_OPERATOR(OP, OP_NAME)\
 VFlt<Size> operator OP(const VFlt<Size>& rhs)const{\
 	VFlt ret;\
-	for(size_t i=0;i<simd_loop_end;i+=ways){\
-		__MSIMD mm = OP_NAME(LOAD_PS(w + i), LOAD_PS(rhs.w + i));\
-		STORE_PS(ret.w + i, mm);\
+	size_t i = 0;\
+	if(Size >= 4 * ways){\
+		const size_t e = Size - Size % (ways * 4);\
+		for(;i<e;i+=ways * 4){\
+			STORE_PS(ret.w + i, OP_NAME(LOAD_PS(w + i), LOAD_PS(rhs.w + i)));\
+			STORE_PS(ret.w + i + ways * 1, OP_NAME(LOAD_PS(w + i + ways * 1), LOAD_PS(rhs.w + i + ways * 1)));\
+			STORE_PS(ret.w + i + ways * 2, OP_NAME(LOAD_PS(w + i + ways * 2), LOAD_PS(rhs.w + i + ways * 2)));\
+			STORE_PS(ret.w + i + ways * 3, OP_NAME(LOAD_PS(w + i + ways * 3), LOAD_PS(rhs.w + i + ways * 3)));\
+		}\
+	}\
+	for(;i<simd_loop_end;i+=ways){\
+		STORE_PS(ret.w + i, OP_NAME(LOAD_PS(w + i), LOAD_PS(rhs.w + i)));\
 	}\
 	if(Size != simd_loop_end){\
-		for(size_t i=simd_loop_end;i<Size;i++){\
+		for(;i<Size;i++){\
 			ret.w[i] = w[i] OP rhs.w[i];\
 		}\
 	}\
 	return ret;\
 }\
 void operator OP##=(const VFlt<Size>& rhs){\
-	for(size_t i=0;i<simd_loop_end;i+=ways){\
-		__MSIMD mm = OP_NAME(LOAD_PS(w + i), LOAD_PS(rhs.w + i));\
-		STORE_PS(w + i, mm);\
+	size_t i = 0;\
+	if(Size >= 4 * ways){\
+		const size_t e = Size - Size % (ways * 4);\
+		for(;i<e;i+=ways * 4){\
+			STORE_PS(w + i, OP_NAME(LOAD_PS(w + i), LOAD_PS(rhs.w + i)));\
+			STORE_PS(w + i + ways * 1, OP_NAME(LOAD_PS(w + i + ways * 1), LOAD_PS(rhs.w + i + ways * 1)));\
+			STORE_PS(w + i + ways * 2, OP_NAME(LOAD_PS(w + i + ways * 2), LOAD_PS(rhs.w + i + ways * 2)));\
+			STORE_PS(w + i + ways * 3, OP_NAME(LOAD_PS(w + i + ways * 3), LOAD_PS(rhs.w + i + ways * 3)));\
+		}\
+	}\
+	for(;i<simd_loop_end;i+=ways){\
+		STORE_PS(w + i, OP_NAME(LOAD_PS(w + i), LOAD_PS(rhs.w + i)));\
 	}\
 	if(Size != simd_loop_end){\
-		for(size_t i=simd_loop_end;i<Size;i++){\
+		for(;i<Size;i++){\
 			w[i] OP##= rhs.w[i];\
 		}\
 	}\
@@ -231,11 +289,21 @@ void operator OP##=(const VFlt<Size>& rhs){\
 		MATH_OPERATOR(/, DIV_PS);
 #undef MATH_OPERATOR
 		void fmadd(const VFlt<Size>& v1, const VFlt<Size>& v2){
-			for(size_t i=0;i<simd_loop_end;i+=ways){
+			size_t i = 0;
+			if(Size > 4 * ways){
+				const size_t e = Size - Size % (ways * 4);
+				for(;i<e;i+=ways * 4){
+					STORE_PS(w + i, fma(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
+					STORE_PS(w + i + ways * 1, fma(LOAD_PS(v1.w + i + ways * 1), LOAD_PS(v2.w + i + ways * 1), LOAD_PS(w + i + ways * 1)));
+					STORE_PS(w + i + ways * 2, fma(LOAD_PS(v1.w + i + ways * 2), LOAD_PS(v2.w + i + ways * 2), LOAD_PS(w + i + ways * 2)));
+					STORE_PS(w + i + ways * 3, fma(LOAD_PS(v1.w + i + ways * 3), LOAD_PS(v2.w + i + ways * 3), LOAD_PS(w + i + ways * 3)));
+				}
+			}
+			for(;i<simd_loop_end;i+=ways){
 				STORE_PS(w + i, fma(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
 			}
 			if(Size != simd_loop_end){
-				for(size_t i=simd_loop_end;i<Size;i++){
+				for(;i<Size;i++){
 					w[i] = std::fma(v1.w[i], v2.w[i], w[i]);
 				}
 			}
