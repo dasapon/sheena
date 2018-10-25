@@ -69,20 +69,68 @@ static void test_math(){
 		ok_if_true((array[0] >= array[1]) == (probability[0] >= probability[1]));
 	}
 }
-
+template<typename VFLT, typename Function>
+static void float_simd_test(const VFLT& result, const VFLT& origin, Function f){
+	for(size_t i=0;i<VFLT::size();i++){
+		ok_if_equal(result[i], f(origin[i]));
+	}
+}
 template<size_t Size>
 static void test_simd_sub(){
 	//浮動小数点演算のテスト
 	sheena::VFlt<Size> v;
 	for(size_t i=0;i<Size;i++){
-		v[i] = i;
+		v[i] = i + 1;
 	}
-	
 	sheena::VFlt<Size> v2(v);
+	v = v2;
+	float_simd_test(v, v2, [](float f){
+		return f;
+	});
 	v += v2;
-	for(size_t i=0;i<Size;i++){
-		ok_if_equal(v[i], float(i + i));
-	}
+	float_simd_test(v, v2, [](float f){
+		return f + f;
+	});
+	v = v2 + v2;
+	float_simd_test(v, v2, [](float f){
+		return f + f;
+	});
+	v = v2;
+	v -= v2;
+	float_simd_test(v, v2, [](float f){
+		return f - f;
+	});
+	v = v2 - v2;
+	float_simd_test(v, v2, [](float f){
+		return f - f;
+	});
+	v = v2;
+	v *= v2;
+	float_simd_test(v, v2, [](float f){
+		return f * f;
+	});
+	v = v2 * v2;
+	float_simd_test(v, v2, [](float f){
+		return f * f;
+	});
+	v = v2;
+	v /= v2;
+	float_simd_test(v, v2, [](float f){
+		return f / f;
+	});
+	v = v2 / v2;
+	float_simd_test(v, v2, [](float f){
+		return f / f;
+	});
+	v = v2.sqrt();
+	float_simd_test(v, v2, [](float f){
+		return std::sqrt(f);
+	});
+	v = v2.rsqrt();
+	float_simd_test(v, v2, [](float f){
+		return 1 / std::sqrt(f);
+	});
+
 	float ip = v2.inner_product(v2);
 	float ip_ = 0;
 	for(size_t i=0;i<Size;i++)ip_ += i * i;
@@ -149,7 +197,7 @@ static void test_mcts(){
 	searcher.set_C(1.4);
 	searcher.set_threads(1);
 	sheena::Stopwatch stopwatch;
-	searcher.search(state, 50000, 1000000);
+	searcher.search(state, 1000, 1000000);
 	sheena::Array<int, 4> actions;
 	sheena::Array<double, 4> rewards;
 	sheena::Array<int, 4> count;

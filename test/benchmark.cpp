@@ -5,9 +5,9 @@
 
 std::mt19937 mt;
 std::normal_distribution<double> dist;
-static float result;
 template<size_t size>
-void ip_test(){
+static void ip_test(){
+	double result = 0;
 	sheena::VFlt<size> v1, v2;
 	for(int i=0;i<size;i++){
 		v1[i] = dist(mt);
@@ -19,14 +19,43 @@ void ip_test(){
 		result += v1.inner_product(v2);
 	}
 	uint64_t msec = stopwatch.msec();
-	std::cout << "size = " << size << " " << msec << "[msec]" << double(loop * size) * 2 / msec / 1000 / 1000 << "G flops" << std::endl;
+	std::cout << "inner product : " << result / loop << std::endl;
+	std::cout << " size = " << size << " " << msec << "[msec] " << double(loop * size) * 2 / msec / 1000 / 1000 << " Gflops" << std::endl;
 	return;
 }
+template<size_t size>
+static void add_sub_test(){
+	sheena::VFlt<size> v1, v2;//, v3;
+	for(int i=0;i<size;i++){
+		v1[i] = dist(mt);
+		v2[i] = dist(mt);
+		//v3[i] = dist(mt);
+	}
+	constexpr size_t loop = (2ULL << 34) / size;
+	sheena::Stopwatch stopwatch;
+	for(size_t i=0; i<loop;i++){
+		v1 += v2;
+		//v1 -= v2;
+	}
+	uint64_t msec = stopwatch.msec();
+	std::cout << "add_sub : size = " << size << " " << msec << "[msec]" << double(loop * size) / msec / 1000 / 1000 << "G flops" << std::endl;
+}
+template<size_t size>
+static void bench(){
+	ip_test<size>();
+	add_sub_test<size>();
+}
 int main(void){
-	ip_test<512>();
-	ip_test<1024>();
-	ip_test<2048>();
-	ip_test<4096>();
-	ip_test<8192>();
+	//todo : ベンチマークの結果がおかしい(size 64, 128, 256で理論性能を超える)ので原因を調べる
+	bench<16>();
+	bench<32>();
+	bench<64>();
+	bench<128>();
+	bench<256>();
+	bench<512>();
+	bench<1024>();
+	bench<2048>();
+	bench<4096>();
+	bench<8192>();
 	return 0;
 }
