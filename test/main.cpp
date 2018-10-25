@@ -143,6 +143,19 @@ static void test_simd_sub(){
 	for(size_t i=0;i<Size;i++){
 		ok_if_true(vi[i] == int(i) * int(i));
 	}
+	//変換のテスト
+	vi = v2.to_vint();
+	for(size_t i=0;i<Size;i++){
+		ok_if_equal(float(vi[i]), v2[i]);
+	}
+	for(int i=0;i<Size;i++){
+		vi[i] = -i;
+	}
+	v2 = vi.to_vflt();
+	for(size_t i=0;i<Size;i++){
+		ok_if_equal(float(vi[i]), v2[i]);
+	}
+
 }
 static void test_simd(){
 	test_simd_sub<3>();

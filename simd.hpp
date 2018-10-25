@@ -20,8 +20,8 @@
 #define SQRT_PS _mm256_sqrt_ps
 #define RSQRT_PS _mm256_rsqrt_ps
 
-#define LOAD_SI(x) _mm256_loadu_si256(reinterpret_cast<const MM*>(x))
-#define STORE_SI(x, y) _mm256_storeu_si256(reinterpret_cast<MM*>(x), y)
+#define LOAD_SI(x) _mm256_loadu_si256(reinterpret_cast<const __m256i*>(x))
+#define STORE_SI(x, y) _mm256_storeu_si256(reinterpret_cast<__m256i*>(x), y)
 #define SETZERO_SI _mm256_setzero_si256
 #define SET1_EPI32 _mm256_set1_epi32
 #define ADD_EPI32 _mm256_add_epi32
@@ -49,8 +49,8 @@
 #define SQRT_PS _mm_sqrt_ps
 #define RSQRT_PS _mm_rsqrt_ps
 
-#define LOAD_SI(x) _mm_loadu_si128(reinterpret_cast<const MM*>(x))
-#define STORE_SI(x, y) _mm_storeu_si128(reinterpret_cast<MM*>(x), y)
+#define LOAD_SI(x) _mm_loadu_si128(reinterpret_cast<const __m128i*>(x))
+#define STORE_SI(x, y) _mm_store_si128(reinterpret_cast<__m128i*>(x), y)
 #define SETZERO_SI _mm_setzero_si128
 #define SET1_EPI32 _mm_set1_epi32
 #define ADD_EPI32 _mm_add_epi32
@@ -371,13 +371,15 @@ void operator OP##=(float rhs){\
 		for(size_t i=0;i<size_with_padding;i+=ways){
 			STORE_SI(ret.w + i, CVTPS_EPI32(LOAD_PS(w + i)));
 		}
+		return ret;
 	}
 	template<size_t Size>
 	VFlt<Size> VInt<Size>::to_vflt()const{
-		VInt<Size> ret;
+		VFlt<Size> ret;
 		for(size_t i=0;i<size_with_padding;i+=ways){
 			STORE_PS(ret.w + i, CVTEPI32_PS(LOAD_SI(w + i)));
 		}
+		return ret;
 	}
 #undef ADD_PS
 #undef SUB_PS
