@@ -24,6 +24,47 @@ static void ip_test(){
 	return;
 }
 template<size_t size>
+static void exp_test(){
+	sheena::VFlt<size> v1, v2, va, vb;
+	for(int i=0;i<size;i++){
+		v1[i] = dist(mt);
+	}
+	v2 = v1;
+	sheena::Stopwatch stopwatch;
+	for(int i=0;i<10000; i++){
+		if(mt() & 1){
+			va = v2.exp();
+		}
+		else{
+			vb = v2.exp();
+		}
+	}
+	uint64_t msec = stopwatch.msec();
+	std::cout << msec << "[msec]" << std::endl;
+	stopwatch.restart();
+	for(int rep=0;rep<10000; rep++){
+		if(mt() & 1){
+			for(int i=0;i<size;i++){
+				va[i] = std::exp(v1[i]);
+			}
+		}
+		else{
+			for(int i=0;i<size;i++){
+				vb[i] = std::exp(v1[i]);
+			}
+		}
+	}
+	msec = stopwatch.msec();
+	std::cout << msec << "[msec]" << std::endl;
+	va = v2.exp();
+	double sq_err = 0;
+	for(int i=0;i<size;i++){
+		float y = std::exp(v2[i]);
+		sq_err += (y - va[i]) * (y - va[i]);
+	}
+	std::cout << sq_err / size << std::endl;
+}
+template<size_t size>
 static void add_sub_test(){
 	sheena::VFlt<size> v1, v2;//, v3;
 	for(int i=0;i<size;i++){
@@ -47,7 +88,7 @@ static void bench(){
 }
 int main(void){
 	//todo : ベンチマークの結果がおかしい(size 64, 128, 256で理論性能を超える)ので原因を調べる
-	bench<16>();
+	/*bench<16>();
 	bench<32>();
 	bench<64>();
 	bench<128>();
@@ -56,6 +97,7 @@ int main(void){
 	bench<1024>();
 	bench<2048>();
 	bench<4096>();
-	bench<8192>();
+	bench<8192>();*/
+	exp_test<65536>();
 	return 0;
 }

@@ -19,6 +19,8 @@
 #define FNMADD_PS _mm256_fnmadd_ps
 #define SQRT_PS _mm256_sqrt_ps
 #define RSQRT_PS _mm256_rsqrt_ps
+#define MIN_PS _mm256_min_ps
+#define MAX_PS _mm256_min_ps
 
 #define LOAD_SI(x) _mm256_loadu_si256(reinterpret_cast<const __m256i*>(x))
 #define STORE_SI(x, y) _mm256_storeu_si256(reinterpret_cast<__m256i*>(x), y)
@@ -48,8 +50,10 @@
 #define FNMADD_PS _mm_fnmadd_ps
 #define SQRT_PS _mm_sqrt_ps
 #define RSQRT_PS _mm_rsqrt_ps
+#define MIN_PS _mm_min_ps
+#define MAX_PS _mm_max_ps
 
-#define LOAD_SI(x) _mm_loadu_si128(reinterpret_cast<const __m128i*>(x))
+#define LOAD_SI(x) _mm_load_si128(reinterpret_cast<const __m128i*>(x))
 #define STORE_SI(x, y) _mm_store_si128(reinterpret_cast<__m128i*>(x), y)
 #define SETZERO_SI _mm_setzero_si128
 #define SET1_EPI32 _mm_set1_epi32
@@ -119,7 +123,7 @@ VECTOR operator OP(TYPE rhs)const{\
 	}\
 	return ret;\
 }\
-void operator OP##=(float rhs){\
+void operator OP##=(TYPE rhs){\
 	size_t i = 0;\
 	MM rhs_mm = SET1(rhs);\
 	if(size_with_padding >= 4 * ways){\
@@ -210,6 +214,85 @@ void operator OP##=(float rhs){\
 			}
 			return ret;
 		}
+		VFlt<Size> exp()const{
+			VFlt<Size> ret;
+			for(int i=0;i<Size;i++){
+				ret[i] = std::exp(w[i]);
+			}
+			return ret;
+		}
+		float max()const{
+			float ret = -FLT_MAX;
+			size_t i = 0;
+			if(Size >= ways){
+				MM mm = SET1_PS(ret);
+				if(Size >= ways * 4){
+					MM mm2 = mm, mm3 = mm, mm4 = mm;
+					const size_t e = Size - Size % (ways * 4);
+					for(;i < e;i+=ways * 4){
+						mm = MAX_PS(LOAD_PS(w + i), mm);
+						mm2 = MAX_PS(LOAD_PS(w + i + ways * 1), mm2);
+						mm3 = MAX_PS(LOAD_PS(w + i + ways * 2), mm3);
+						mm4 = MAX_PS(LOAD_PS(w + i + ways * 3), mm4);
+					}
+					mm = MAX_PS(mm, mm2);
+					mm3 = MAX_PS(mm3, mm4);
+					mm = MAX_PS(mm, mm3);
+				}
+				for(;i < simd_loop_end;i+=ways){
+					mm = MAX_PS(LOAD_PS(w + i), mm);
+				}
+				alignas(ways * 4) float v[ways];
+				STORE_PS(v, mm);
+#ifdef SIMD256_AVAILABLE
+				ret = std::max(std::min(std::min(v[0] + v[1]), std::max(v[2], v[3])), std::max(std::min(v[4], v[5]) + std::max(v[6], v[7])));
+#else
+				ret = std::max(std::max(v[0] + v[1]), std::max(v[2], v[3]));
+#endif
+			}
+			if(Size != simd_loop_end){
+				for(size_t i=simd_loop_end;i<Size;i++){
+					ret = std::max(ret, w[i]);
+				}
+			}
+			return ret;
+		}
+		float min()const{
+			float ret = FLT_MAX;
+			size_t i = 0;
+			if(Size >= ways){
+				MM mm = SET1_PS(ret);
+				if(Size >= ways * 4){
+					MM mm2 = mm, mm3 = mm, mm4 = mm;
+					const size_t e = Size - Size % (ways * 4);
+					for(;i < e;i+=ways * 4){
+						mm = MIN_PS(LOAD_PS(w + i), mm);
+						mm2 = MIN_PS(LOAD_PS(w + i + ways * 1), mm2);
+						mm3 = MIN_PS(LOAD_PS(w + i + ways * 2), mm3);
+						mm4 = MIN_PS(LOAD_PS(w + i + ways * 3), mm4);
+					}
+					mm = MIN_PS(mm, mm2);
+					mm3 = MIN_PS(mm3, mm4);
+					mm = MIN_PS(mm, mm3);
+				}
+				for(;i < simd_loop_end;i+=ways){
+					mm = MIN_PS(LOAD_PS(w + i), mm);
+				}
+				alignas(ways * 4) float v[ways];
+				STORE_PS(v, mm);
+#ifdef SIMD256_AVAILABLE
+				ret = std::min(std::min(std::min(v[0] + v[1]), std::min(v[2], v[3])), std::min(std::min(v[4], v[5]) + std::min(v[6], v[7])));
+#else
+				ret = std::min(std::min(v[0] + v[1]), std::min(v[2], v[3]));
+#endif
+			}
+			if(Size != simd_loop_end){
+				for(size_t i=simd_loop_end;i<Size;i++){
+					ret = std::min(ret, w[i]);
+				}
+			}
+			return ret;
+		}
 		//合計値の計算
 		float sum()const{
 			float ret = 0;
@@ -286,7 +369,7 @@ void operator OP##=(float rhs){\
 			return ret;
 		}
 
-		void fmadd(const VFlt<Size>& v1, const VFlt<Size>& v2){
+		void add_product(const VFlt<Size>& v1, const VFlt<Size>& v2){
 			size_t i = 0;
 			if(size_with_padding >= 4 * ways){\
 				const size_t e = size_with_padding - size_with_padding % (ways * 4);\
@@ -301,7 +384,7 @@ void operator OP##=(float rhs){\
 				STORE_PS(w + i, fma(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
 			}
 		}
-		void fmsub(const VFlt<Size>& v1, const VFlt<Size>& v2){
+		void sub_product(const VFlt<Size>& v1, const VFlt<Size>& v2){
 #ifdef FMA_ENABLE
 			for(size_t i=0;i<size_with_padding;i+=ways){
 				STORE_PS(w + i, FNMADD_PS(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));

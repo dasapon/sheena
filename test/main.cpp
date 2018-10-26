@@ -130,6 +130,11 @@ static void test_simd_sub(){
 	float_simd_test(v, v2, [](float f){
 		return 1 / std::sqrt(f);
 	});
+	v2[0] = 0;
+	v2[1] = 1;
+	v2[2] = 16;
+	v = v2.exp();
+	std::cout << v[0] << "," << v[1] << "," << v[2] << std::endl;
 
 	float ip = v2.inner_product(v2);
 	float ip_ = 0;
