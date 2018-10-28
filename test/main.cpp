@@ -83,6 +83,9 @@ static void test_simd_sub(){
 		v[i] = i + 1;
 	}
 	sheena::VFlt<Size> v2(v);
+	ok_if_equal(v2.sum(), float((1 + Size) * Size / 2));
+	ok_if_equal(v2.max(), float(Size));
+	ok_if_equal(v2.min(), 1.0f);
 	v = v2;
 	float_simd_test(v, v2, [](float f){
 		return f;
@@ -95,6 +98,7 @@ static void test_simd_sub(){
 	float_simd_test(v, v2, [](float f){
 		return f + f;
 	});
+	v = v2;
 	v = v2;
 	v -= v2;
 	float_simd_test(v, v2, [](float f){
@@ -130,16 +134,39 @@ static void test_simd_sub(){
 	float_simd_test(v, v2, [](float f){
 		return 1 / std::sqrt(f);
 	});
-	v2[0] = 0;
-	v2[1] = 1;
-	v2[2] = 16;
-	v = v2.exp();
-	std::cout << v[0] << "," << v[1] << "," << v[2] << std::endl;
-
 	float ip = v2.inner_product(v2);
 	float ip_ = 0;
 	for(size_t i=0;i<Size;i++)ip_ += i * i;
 	ok_if_equal(ip, ip_);
+	//スカラーとの演算のテスト
+	for(size_t i=0;i<Size;i++){
+		v[i] = i + 1;
+	}
+	v2 = v + 1;
+	v += 1;
+	for(size_t i=0;i<Size;i++){
+		ok_if_equal(v[i], v2[i]);
+		ok_if_equal(v[i], i + 2.0f);
+	}
+	v2 = v - 1;
+	v -= 1;
+	for(size_t i=0;i<Size;i++){
+		ok_if_equal(v[i], v2[i]);
+		ok_if_equal(v[i], i + 1.0f);
+	}
+	v2 = v * 2;
+	v *= 2;
+	for(size_t i=0;i<Size;i++){
+		ok_if_equal(v[i], v2[i]);
+		ok_if_equal(v[i], (i + 1) * 2.0f);
+	}
+	v2 = v / 2;
+	v /= 2;
+	for(size_t i=0;i<Size;i++){
+		ok_if_equal(v[i], v2[i]);
+		ok_if_equal(v[i], i + 1.0f);
+	}
+
 	//整数演算のテスト
 	sheena::VInt<Size> vi;
 	for(size_t i=0;i<Size;i++)vi[i] = i;
@@ -167,6 +194,7 @@ static void test_simd(){
 	test_simd_sub<6>();
 	test_simd_sub<9>();
 	test_simd_sub<12>();
+	test_simd_sub<1625>();
 }
 class State{
 	using Action = int;

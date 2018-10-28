@@ -111,12 +111,12 @@ namespace sheena{
 VECTOR operator OP(const VECTOR& rhs)const{\
 	VECTOR ret;\
 	size_t i = 0;\
-	BINARY_OPERATION(i, ret.w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i), LOAD(rhs.w + i + 1 * ways), LOAD(rhs.w + i + 2 * ways), LOAD(rhs.w + i * 3 * ways));\
+	BINARY_OPERATION(i, ret.w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i), LOAD(rhs.w + i + 1 * ways), LOAD(rhs.w + i + 2 * ways), LOAD(rhs.w + i + 3 * ways));\
 	return ret;\
 }\
 void operator OP##=(const VECTOR& rhs){\
 	size_t i = 0;\
-	BINARY_OPERATION(i, w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i), LOAD(rhs.w + i + 1 * ways), LOAD(rhs.w + i + 2 * ways), LOAD(rhs.w + i * 3 * ways));\
+	BINARY_OPERATION(i, w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i), LOAD(rhs.w + i + 1 * ways), LOAD(rhs.w + i + 2 * ways), LOAD(rhs.w + i + 3 * ways));\
 }
 #define MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME) \
 VECTOR operator OP(TYPE rhs)const{\
@@ -244,9 +244,9 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				alignas(ways * 4) float v[ways];
 				STORE_PS(v, mm);
 #ifdef SIMD256_AVAILABLE
-				ret = std::max(std::min(std::min(v[0] + v[1]), std::max(v[2], v[3])), std::max(std::min(v[4], v[5]) + std::max(v[6], v[7])));
+				ret = std::max(std::max(std::max(v[0], v[1]), std::max(v[2], v[3])), std::max(std::max(v[4], v[5]), std::max(v[6], v[7])));
 #else
-				ret = std::max(std::max(v[0] + v[1]), std::max(v[2], v[3]));
+				ret = std::max(std::max(v[0], v[1]), std::max(v[2], v[3]));
 #endif
 			}
 			if(Size != simd_loop_end){
@@ -280,9 +280,9 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				alignas(ways * 4) float v[ways];
 				STORE_PS(v, mm);
 #ifdef SIMD256_AVAILABLE
-				ret = std::min(std::min(std::min(v[0] + v[1]), std::min(v[2], v[3])), std::min(std::min(v[4], v[5]) + std::min(v[6], v[7])));
+				ret = std::min(std::min(std::min(v[0], v[1]), std::min(v[2], v[3])), std::min(std::min(v[4], v[5]), std::min(v[6], v[7])));
 #else
-				ret = std::min(std::min(v[0] + v[1]), std::min(v[2], v[3]));
+				ret = std::min(std::min(v[0], v[1]), std::min(v[2], v[3]));
 #endif
 			}
 			if(Size != simd_loop_end){
