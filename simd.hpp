@@ -30,8 +30,11 @@
 #define SUB_EPI32 _mm256_sub_epi32
 #define MULLO_EPI32 _mm256_mullo_epi32
 #define AND_SI _mm256_and_si256
+#define ANDNOT_SI _mm256_andnot_si256
 #define OR_SI _mm256_or_si256
 #define XOR_SI _mm256_xor_si256
+#define SLLI_EPI32 _mm256_slli_epi32
+#define SLLV_EPI32 _mm256_sllv_epi32
 
 #define CVTPS_EPI32 _mm256_cvtps_epi32
 #define CVTEPI32_PS _mm256_cvtepi32_ps
@@ -61,8 +64,11 @@
 #define SUB_EPI32 _mm_sub_epi32
 #define MULLO_EPI32 _mm_mullo_epi32
 #define AND_SI _mm_and_si128
+#define ANDNOT_SI _mm_andnot_si128
 #define OR_SI _mm_or_si128
 #define XOR_SI _mm_xor_si128
+#define SLLI_EPI32 _mm_slli_epi32
+#define SLLV_EPI32 _mm_sllv_epi32
 
 #define CVTPS_EPI32 _mm_cvtps_epi32
 #define CVTEPI32_PS _mm_cvtepi32_ps
@@ -72,73 +78,62 @@
 #include <x86intrin.h>
 
 namespace sheena{
-#define MATH_OPERATOR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)\
-VECTOR operator OP(const VECTOR& rhs)const{\
-	VECTOR ret;\
+#define UNARY_OPERATION(TARGET, LOAD, STORE, OP_NAME) {\
 	size_t i = 0;\
 	if(size_with_padding >= 4 * ways){\
 		const size_t e = size_with_padding - size_with_padding % (ways * 4);\
 		for(;i<e;i+=ways * 4){\
-			STORE(ret.w + i, OP_NAME(LOAD(w + i), LOAD(rhs.w + i)));\
-			STORE(ret.w + i + ways * 1, OP_NAME(LOAD(w + i + ways * 1), LOAD(rhs.w + i + ways * 1)));\
-			STORE(ret.w + i + ways * 2, OP_NAME(LOAD(w + i + ways * 2), LOAD(rhs.w + i + ways * 2)));\
-			STORE(ret.w + i + ways * 3, OP_NAME(LOAD(w + i + ways * 3), LOAD(rhs.w + i + ways * 3)));\
+			STORE(TARGET + i, OP_NAME(LOAD(w + i)));\
+			STORE(TARGET + i + ways * 1, OP_NAME(LOAD(w + i + ways * 1)));\
+			STORE(TARGET + i + ways * 2, OP_NAME(LOAD(w + i + ways * 2)));\
+			STORE(TARGET + i + ways * 3, OP_NAME(LOAD(w + i + ways * 3)));\
 		}\
 	}\
 	for(;i<size_with_padding;i+=ways){\
-		STORE(ret.w + i, OP_NAME(LOAD(w + i), LOAD(rhs.w + i)));\
+		STORE(TARGET + i, OP_NAME(LOAD(w + i)));\
 	}\
+}
+#define BINARY_OPERATION(LOOP_COUNTER, TARGET, LOAD, STORE, OP_NAME, RHS0, RHS1, RHS2, RHS3) {\
+	if(size_with_padding >= 4 * ways){\
+		const size_t e = size_with_padding - size_with_padding % (ways * 4);\
+		for(; LOOP_COUNTER < e; LOOP_COUNTER += ways * 4){\
+			STORE(TARGET + LOOP_COUNTER, OP_NAME(LOAD(w + i), RHS0));\
+			STORE(TARGET + LOOP_COUNTER + ways * 1, OP_NAME(LOAD(w + LOOP_COUNTER + ways * 1), RHS1));\
+			STORE(TARGET + LOOP_COUNTER + ways * 2, OP_NAME(LOAD(w + LOOP_COUNTER + ways * 2), RHS2));\
+			STORE(TARGET + LOOP_COUNTER + ways * 3, OP_NAME(LOAD(w + LOOP_COUNTER + ways * 3), RHS3));\
+		}\
+	}\
+	for(; LOOP_COUNTER < size_with_padding; LOOP_COUNTER += ways){\
+		STORE(TARGET + LOOP_COUNTER, OP_NAME(LOAD(w + LOOP_COUNTER), RHS0));\
+	}\
+}
+#define MATH_OPERATOR_VECTOR(VECTOR, LOAD, STORE, OP, OP_NAME)\
+VECTOR operator OP(const VECTOR& rhs)const{\
+	VECTOR ret;\
+	size_t i = 0;\
+	BINARY_OPERATION(i, ret.w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i), LOAD(rhs.w + i + 1 * ways), LOAD(rhs.w + i + 2 * ways), LOAD(rhs.w + i * 3 * ways));\
 	return ret;\
 }\
 void operator OP##=(const VECTOR& rhs){\
 	size_t i = 0;\
-	if(size_with_padding >= 4 * ways){\
-		const size_t e = size_with_padding - size_with_padding % (ways * 4);\
-		for(;i<e;i+=ways * 4){\
-			STORE(w + i, OP_NAME(LOAD(w + i), LOAD(rhs.w + i)));\
-			STORE(w + i + ways * 1, OP_NAME(LOAD(w + i + ways * 1), LOAD(rhs.w + i + ways * 1)));\
-			STORE(w + i + ways * 2, OP_NAME(LOAD(w + i + ways * 2), LOAD(rhs.w + i + ways * 2)));\
-			STORE(w + i + ways * 3, OP_NAME(LOAD(w + i + ways * 3), LOAD(rhs.w + i + ways * 3)));\
-		}\
-	}\
-	for(;i<size_with_padding;i+=ways){\
-		STORE(w + i, OP_NAME(LOAD(w + i), LOAD(rhs.w + i)));\
-	}\
-}\
+	BINARY_OPERATION(i, w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i), LOAD(rhs.w + i + 1 * ways), LOAD(rhs.w + i + 2 * ways), LOAD(rhs.w + i * 3 * ways));\
+}
+#define MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME) \
 VECTOR operator OP(TYPE rhs)const{\
 	VECTOR ret;\
 	MM rhs_mm = SET1(rhs);\
 	size_t i = 0;\
-	if(size_with_padding >= 4 * ways){\
-		const size_t e = size_with_padding - size_with_padding % (ways * 4);\
-		for(;i<e;i+=ways * 4){\
-			STORE(ret.w + i, OP_NAME(LOAD(w + i), rhs_mm));\
-			STORE(ret.w + i + ways * 1, OP_NAME(LOAD(w + i + ways * 1), rhs_mm));\
-			STORE(ret.w + i + ways * 2, OP_NAME(LOAD(w + i + ways * 2), rhs_mm));\
-			STORE(ret.w + i + ways * 3, OP_NAME(LOAD(w + i + ways * 3), rhs_mm));\
-		}\
-	}\
-	for(;i<size_with_padding;i+=ways){\
-		STORE(ret.w + i, OP_NAME(LOAD(w + i), rhs_mm));\
-	}\
+	BINARY_OPERATION(i, ret.w, LOAD, STORE, OP_NAME, rhs_mm, rhs_mm, rhs_mm, rhs_mm);\
 	return ret;\
 }\
 void operator OP##=(TYPE rhs){\
-	size_t i = 0;\
 	MM rhs_mm = SET1(rhs);\
-	if(size_with_padding >= 4 * ways){\
-		const size_t e = size_with_padding - size_with_padding % (ways * 4);\
-		for(;i<e;i+=ways * 4){\
-			STORE(w + i, OP_NAME(LOAD(w + i), rhs_mm));\
-			STORE(w + i + ways * 1, OP_NAME(LOAD(w + i + ways * 1), rhs_mm));\
-			STORE(w + i + ways * 2, OP_NAME(LOAD(w + i + ways * 2), rhs_mm));\
-			STORE(w + i + ways * 3, OP_NAME(LOAD(w + i + ways * 3), rhs_mm));\
-		}\
-	}\
-	for(;i<size_with_padding;i+=ways){\
-		STORE(w + i, OP_NAME(LOAD(w + i), rhs_mm));\
-	}\
+	size_t i = 0;\
+	BINARY_OPERATION(i, w, LOAD, STORE, OP_NAME, rhs_mm, rhs_mm, rhs_mm, rhs_mm);\
 }
+#define MATH_OPERATOR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME) \
+MATH_OPERATOR_VECTOR(VECTOR, LOAD, STORE, OP, OP_NAME) \
+MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 	template<size_t Size>
 	class VInt;
 	template<size_t Size>
@@ -153,13 +148,21 @@ void operator OP##=(TYPE rhs){\
 		static constexpr size_t ways = 4;
 		using MM = __m128;
 #endif
-		static MM fma(MM v1, MM v2, MM v3){
 #ifdef FMA_ENABLE
+		static MM fma(MM v1, MM v2, MM v3){
 			return FMADD_PS(v1, v2, v3);
-#else
-			return ADD_PS(MUL_PS(v1, v2), v3);
-#endif
 		}
+		static MM fnma(MM v1, MM v2, MM v3){
+			return FNMADD_PS(v1, v2, v3);
+		}
+#else
+		static MM fma(MM v1, MM v2, MM v3){
+			return ADD_PS(MUL_PS(v1, v2), v3);
+		}
+		static MM fnma(MM v1, MM v2, MM v3){
+			return FNMADD_PS(v1, v2, v3);
+		}
+#endif
 		static constexpr size_t simd_loop_end = Size - Size % ways;
 		static constexpr size_t padding = Size% ways != 0 ? ways - (Size % ways) : 0;
 		static constexpr size_t size_with_padding = Size + padding;
@@ -199,21 +202,17 @@ void operator OP##=(TYPE rhs){\
 		MATH_OPERATOR(float, VFlt<Size>, SET1_PS, LOAD_PS, STORE_PS, -, SUB_PS);
 		MATH_OPERATOR(float, VFlt<Size>, SET1_PS, LOAD_PS, STORE_PS, *, MUL_PS);
 		MATH_OPERATOR(float, VFlt<Size>, SET1_PS, LOAD_PS, STORE_PS, /, DIV_PS);
-
 		VFlt<Size> sqrt()const{
 			VFlt<Size> ret;
-			for(size_t i = 0;i < size_with_padding;i+=ways){
-				STORE_PS(ret.w + i, SQRT_PS(LOAD_PS(w + i)));
-			}
+			UNARY_OPERATION(ret.w, LOAD_PS, STORE_PS, SQRT_PS);
 			return ret;
 		}
 		VFlt<Size> rsqrt()const{
 			VFlt<Size> ret;
-			for(size_t i = 0;i < size_with_padding;i+=ways){
-				STORE_PS(ret.w + i, RSQRT_PS(LOAD_PS(w + i)));
-			}
+			UNARY_OPERATION(ret.w, LOAD_PS, STORE_PS, RSQRT_PS);
 			return ret;
 		}
+
 		VFlt<Size> exp()const{
 			VFlt<Size> ret;
 			for(int i=0;i<Size;i++){
@@ -371,8 +370,8 @@ void operator OP##=(TYPE rhs){\
 
 		void add_product(const VFlt<Size>& v1, const VFlt<Size>& v2){
 			size_t i = 0;
-			if(size_with_padding >= 4 * ways){\
-				const size_t e = size_with_padding - size_with_padding % (ways * 4);\
+			if(size_with_padding >= 4 * ways){
+				const size_t e = size_with_padding - size_with_padding % (ways * 4);
 				for(;i<e;i+=ways * 4){
 					STORE_PS(w + i, fma(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
 					STORE_PS(w + i + ways * 1, fma(LOAD_PS(v1.w + i + ways * 1), LOAD_PS(v2.w + i + ways * 1), LOAD_PS(w + i + ways * 1)));
@@ -385,13 +384,19 @@ void operator OP##=(TYPE rhs){\
 			}
 		}
 		void sub_product(const VFlt<Size>& v1, const VFlt<Size>& v2){
-#ifdef FMA_ENABLE
-			for(size_t i=0;i<size_with_padding;i+=ways){
-				STORE_PS(w + i, FNMADD_PS(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
+			size_t i = 0;
+			if(size_with_padding >= 4 * ways){
+				const size_t e = size_with_padding - size_with_padding % (ways * 4);
+				for(;i<e;i+=ways * 4){
+					STORE_PS(w + i, fnma(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
+					STORE_PS(w + i + ways * 1, fnma(LOAD_PS(v1.w + i + ways * 1), LOAD_PS(v2.w + i + ways * 1), LOAD_PS(w + i + ways * 1)));
+					STORE_PS(w + i + ways * 2, fnma(LOAD_PS(v1.w + i + ways * 2), LOAD_PS(v2.w + i + ways * 2), LOAD_PS(w + i + ways * 2)));
+					STORE_PS(w + i + ways * 3, fnma(LOAD_PS(v1.w + i + ways * 3), LOAD_PS(v2.w + i + ways * 3), LOAD_PS(w + i + ways * 3)));
+				}
 			}
-#else
-			operator-=(v1 * v2);
-#endif
+			for(;i<size_with_padding;i+=ways){
+				STORE_PS(w + i, fnma(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
+			}
 		}
 		VInt<Size> to_vint()const;
 	};
@@ -446,19 +451,33 @@ void operator OP##=(TYPE rhs){\
 		MATH_OPERATOR(int, VInt<Size>, SET1_EPI32, LOAD_SI, STORE_SI, &, AND_SI);
 		MATH_OPERATOR(int, VInt<Size>, SET1_EPI32, LOAD_SI, STORE_SI, |, OR_SI);
 		MATH_OPERATOR(int, VInt<Size>, SET1_EPI32, LOAD_SI, STORE_SI, ^, XOR_SI);
+		MATH_OPERATOR_VECTOR(VInt<Size>, LOAD_SI, STORE_SI, <<, SLLV_EPI32);
+		VInt<Size> operator<<(int x)const{
+			size_t i = 0;
+			VInt<Size> ret;
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, SLLI_EPI32, x, x, x, x);
+			return ret;
+		}
+		void operator<<=(int x){
+			size_t i = 0;
+			BINARY_OPERATION(i, w, LOAD_SI, STORE_SI, SLLI_EPI32, x, x, x, x);
+		}
+		VInt<Size> operator~()const{
+			size_t i = 0;
+			BINARY_OPERATION(i, w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
+		}
 		VFlt<Size> to_vflt()const;
 	};
 	template<size_t Size>
 	VInt<Size> VFlt<Size>::to_vint()const{
 		VInt<Size> ret;
-		for(size_t i=0;i<size_with_padding;i+=ways){
-			STORE_SI(ret.w + i, CVTPS_EPI32(LOAD_PS(w + i)));
-		}
+		UNARY_OPERATION(ret.w, LOAD_PS, STORE_SI, CVTPS_EPI32);
 		return ret;
 	}
 	template<size_t Size>
 	VFlt<Size> VInt<Size>::to_vflt()const{
 		VFlt<Size> ret;
+		UNARY_OPERATION(ret.w + i,LOAD_SI, STORE_PS, CVTEPI32_PS);
 		for(size_t i=0;i<size_with_padding;i+=ways){
 			STORE_PS(ret.w + i, CVTEPI32_PS(LOAD_SI(w + i)));
 		}
@@ -485,7 +504,10 @@ void operator OP##=(TYPE rhs){\
 #undef AND_SI
 #undef OR_SI
 #undef XOR_SI
+
 #undef MATH_OPERATOR
+#undef MATH_OPERATOR_SCALAR
+#undef MATH_OPERATOR_VECTOR
 
 	class Float4 : VFlt<4>{
 	public:

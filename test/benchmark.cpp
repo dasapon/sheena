@@ -88,7 +88,7 @@ static void bench(){
 }
 int main(void){
 	//todo : ベンチマークの結果がおかしい(size 64, 128, 256で理論性能を超える)ので原因を調べる
-	/*bench<16>();
+	bench<16>();
 	bench<32>();
 	bench<64>();
 	bench<128>();
@@ -97,7 +97,7 @@ int main(void){
 	bench<1024>();
 	bench<2048>();
 	bench<4096>();
-	bench<8192>();*/
+	bench<8192>();
 	exp_test<65536>();
 	return 0;
 }
