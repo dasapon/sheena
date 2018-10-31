@@ -7,7 +7,7 @@
 	my_assert(boolean, std::string("test is failed.") + std::to_string(__LINE__));\
 }
 #define ok_if_equal(v1, v2){\
-	my_assert_float(v1, v2, std::string("test is failed.") + std::to_string(__LINE__));\
+	my_assert_fp(v1, v2, std::string("test is failed.") + std::to_string(__LINE__));\
 }
 
 static void my_assert(bool eq, std::string err_msg){
@@ -15,11 +15,10 @@ static void my_assert(bool eq, std::string err_msg){
 		std::cout << err_msg << std::endl;
 	}
 }
-template<typename Ty>
-static void my_assert_float(Ty v1, Ty v2, std::string err_msg){
-	Ty diff = std::abs(v1 - v2);
-	constexpr Ty allowable = 0.0001;
-	if(diff > allowable && diff > std::abs(v1) * allowable && diff < std::abs(v2) * allowable){
+static void my_assert_fp(double v1, double v2, std::string err_msg){
+	double diff = std::abs(v1 - v2);
+	constexpr double allowable = 0.001;
+	if(diff > allowable && diff > std::abs(v1) * allowable && diff > std::abs(v2) * allowable){
 		std::cout << err_msg << " " << v1 << " " << v2 << std::endl;
 	}
 }
@@ -70,124 +69,131 @@ static void test_math(){
 	}
 }
 template<typename VFLT, typename Function>
-static void float_simd_test(const VFLT& result, const VFLT& origin, Function f){
+static void fp_vector_test(const VFLT& result, const VFLT& origin, Function f){
 	for(size_t i=0;i<VFLT::size();i++){
 		ok_if_equal(result[i], f(origin[i]));
 	}
 }
-template<size_t Size>
-static void test_simd_sub(){
-	//浮動小数点演算のテスト
-	sheena::VFlt<Size> v;
-	for(size_t i=0;i<Size;i++){
+template<typename Vfp>
+static void test_simd_fp(){
+	Vfp v;
+	for(int i=0;i<Vfp::size();i++){
 		v[i] = i + 1;
 	}
-	sheena::VFlt<Size> v2(v);
-	ok_if_equal(v2.sum(), float((1 + Size) * Size / 2));
-	ok_if_equal(v2.max(), float(Size));
-	ok_if_equal(v2.min(), 1.0f);
+	Vfp v2(v);
+	ok_if_equal(v2.sum(), (1 + Vfp::size()) * Vfp::size() / 2);
+	ok_if_equal(v2.max(), Vfp::size());
+	ok_if_equal(v2.min(), 1);
 	v = v2;
-	float_simd_test(v, v2, [](float f){
-		return f;
+	fp_vector_test(v, v2, [](double d){
+		return d;
 	});
 	v += v2;
-	float_simd_test(v, v2, [](float f){
-		return f + f;
+	fp_vector_test(v, v2, [](double d){
+		return d + d;
 	});
 	v = v2 + v2;
-	float_simd_test(v, v2, [](float f){
-		return f + f;
+	fp_vector_test(v, v2, [](double d){
+		return d + d;
 	});
-	v = v2;
 	v = v2;
 	v -= v2;
-	float_simd_test(v, v2, [](float f){
-		return f - f;
+	fp_vector_test(v, v2, [](double d){
+		return d - d;
 	});
 	v = v2 - v2;
-	float_simd_test(v, v2, [](float f){
-		return f - f;
+	fp_vector_test(v, v2, [](double d){
+		return d - d;
 	});
 	v = v2;
 	v *= v2;
-	float_simd_test(v, v2, [](float f){
-		return f * f;
+	fp_vector_test(v, v2, [](double d){
+		return d * d;
 	});
 	v = v2 * v2;
-	float_simd_test(v, v2, [](float f){
-		return f * f;
+	fp_vector_test(v, v2, [](double d){
+		return d * d;
 	});
 	v = v2;
 	v /= v2;
-	float_simd_test(v, v2, [](float f){
-		return f / f;
+	fp_vector_test(v, v2, [](double d){
+		return d / d;
 	});
 	v = v2 / v2;
-	float_simd_test(v, v2, [](float f){
-		return f / f;
+	fp_vector_test(v, v2, [](double d){
+		return d / d;
 	});
 	v = v2.sqrt();
-	float_simd_test(v, v2, [](float f){
-		return std::sqrt(f);
+	fp_vector_test(v, v2, [](double d){
+		return std::sqrt(d);
 	});
 	v = v2.rsqrt();
-	float_simd_test(v, v2, [](float f){
-		return 1 / std::sqrt(f);
+	fp_vector_test(v, v2, [](double d){
+		return 1.0 / std::sqrt(d);
 	});
-	float ip = v2.inner_product(v2);
+	double ip = v2.inner_product(v2);
 	float ip_ = 0;
-	for(size_t i=0;i<Size;i++)ip_ += i * i;
+	for(size_t i=0;i<Vfp::size();i++)ip_ += (i + 1) * (i + 1);
+	std::cout << ip << "," << ip_ << std::endl;
 	ok_if_equal(ip, ip_);
 	//スカラーとの演算のテスト
-	for(size_t i=0;i<Size;i++){
+	for(size_t i=0;i<Vfp::size();i++){
 		v[i] = i + 1;
 	}
 	v2 = v + 1;
 	v += 1;
-	for(size_t i=0;i<Size;i++){
+	for(size_t i=0;i<Vfp::size();i++){
 		ok_if_equal(v[i], v2[i]);
 		ok_if_equal(v[i], i + 2.0f);
 	}
 	v2 = v - 1;
 	v -= 1;
-	for(size_t i=0;i<Size;i++){
+	for(size_t i=0;i<Vfp::size();i++){
 		ok_if_equal(v[i], v2[i]);
 		ok_if_equal(v[i], i + 1.0f);
 	}
 	v2 = v * 2;
 	v *= 2;
-	for(size_t i=0;i<Size;i++){
+	for(size_t i=0;i<Vfp::size();i++){
 		ok_if_equal(v[i], v2[i]);
 		ok_if_equal(v[i], (i + 1) * 2.0f);
 	}
 	v2 = v / 2;
 	v /= 2;
-	for(size_t i=0;i<Size;i++){
+	for(size_t i=0;i<Vfp::size();i++){
 		ok_if_equal(v[i], v2[i]);
 		ok_if_equal(v[i], i + 1.0f);
 	}
+}
+template<size_t Size>
+static void test_simd_sub(){
+	test_simd_fp<sheena::VFlt<Size>>();
 
 	//整数演算のテスト
 	sheena::VInt<Size> vi;
 	for(size_t i=0;i<Size;i++)vi[i] = i;
+	ok_if_true(vi.max() == Size - 1);
+	ok_if_true(vi.min() == 0);
+	ok_if_true(vi.sum() == (Size - 1) * Size / 2);
 	sheena::VInt<Size> vi2(vi);
 	vi *= vi2;
 	for(size_t i=0;i<Size;i++){
 		ok_if_true(vi[i] == int(i) * int(i));
 	}
 	//変換のテスト
-	vi = v2.to_vint();
+	sheena::VFlt<Size> vflt;
+	for(int i=0;i<Size;i++)vflt[i] = i -2;
+	vi = vflt.to_vint();
 	for(size_t i=0;i<Size;i++){
-		ok_if_equal(float(vi[i]), v2[i]);
+		ok_if_equal(float(vi[i]), vflt[i]);
 	}
 	for(int i=0;i<Size;i++){
 		vi[i] = -i;
 	}
-	v2 = vi.to_vflt();
+	vflt = vi.to_vflt();
 	for(size_t i=0;i<Size;i++){
-		ok_if_equal(float(vi[i]), v2[i]);
+		ok_if_equal(float(vi[i]), vflt[i]);
 	}
-
 }
 static void test_simd(){
 	test_simd_sub<3>();

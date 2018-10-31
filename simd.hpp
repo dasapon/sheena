@@ -25,16 +25,32 @@
 #define LOAD_SI(x) _mm256_loadu_si256(reinterpret_cast<const __m256i*>(x))
 #define STORE_SI(x, y) _mm256_storeu_si256(reinterpret_cast<__m256i*>(x), y)
 #define SETZERO_SI _mm256_setzero_si256
+#define SET1_EPI8 _mm256_set1_epi8
+#define SET1_EPI16 _mm256_set1_epi16
 #define SET1_EPI32 _mm256_set1_epi32
+#define ADD_EPI8 _mm256_add_epi8
+#define ADD_EPI16 _mm256_add_epi16
 #define ADD_EPI32 _mm256_add_epi32
+#define SUB_EPI8 _mm256_sub_epi8
+#define SUB_EPI16 _mm256_sub_epi16
 #define SUB_EPI32 _mm256_sub_epi32
+#define MULLO_EPI16 _mm256_mullo_epi16
 #define MULLO_EPI32 _mm256_mullo_epi32
 #define AND_SI _mm256_and_si256
 #define ANDNOT_SI _mm256_andnot_si256
 #define OR_SI _mm256_or_si256
 #define XOR_SI _mm256_xor_si256
+#define SLLI_EPI16 _mm256_slli_epi16
 #define SLLI_EPI32 _mm256_slli_epi32
+#define SLLV_EPI16 _mm256_sllv_epi16
 #define SLLV_EPI32 _mm256_sllv_epi32
+#define MAX_EPI8 _mm256_max_epi8
+#define MAX_EPI16 _mm256_max_epi16
+#define MAX_EPI32 _mm256_max_epi32
+#define MIN_EPI8 _mm256_max_epi8
+#define MIN_EPI16 _mm256_max_epi16
+#define MIN_EPI32 _mm256_min_epi32
+
 
 #define CVTPS_EPI32 _mm256_cvtps_epi32
 #define CVTEPI32_PS _mm256_cvtepi32_ps
@@ -56,19 +72,35 @@
 #define MIN_PS _mm_min_ps
 #define MAX_PS _mm_max_ps
 
-#define LOAD_SI(x) _mm_load_si128(reinterpret_cast<const __m128i*>(x))
-#define STORE_SI(x, y) _mm_store_si128(reinterpret_cast<__m128i*>(x), y)
+#define LOAD_SI(x) _mm_loadu_si128(reinterpret_cast<const __m128i*>(x))
+#define STORE_SI(x, y) _mm_storeu_si128(reinterpret_cast<__m128i*>(x), y)
 #define SETZERO_SI _mm_setzero_si128
+#define SET1_EPI8 _mm_set1_epi8
+#define SET1_EPI16 _mm_set1_epi16
 #define SET1_EPI32 _mm_set1_epi32
+#define ADD_EPI8 _mm_add_epi8
+#define ADD_EPI16 _mm_add_epi16
 #define ADD_EPI32 _mm_add_epi32
+#define SUB_EPI8 _mm_sub_epi8
+#define SUB_EPI16 _mm_sub_epi16
 #define SUB_EPI32 _mm_sub_epi32
+#define MULLO_EPI16 _mm_mullo_epi16
 #define MULLO_EPI32 _mm_mullo_epi32
 #define AND_SI _mm_and_si128
 #define ANDNOT_SI _mm_andnot_si128
 #define OR_SI _mm_or_si128
 #define XOR_SI _mm_xor_si128
+#define SLLI_EPI16 _mm_slli_epi16
 #define SLLI_EPI32 _mm_slli_epi32
+#define SLLV_EPI16 _mm_sllv_epi16
 #define SLLV_EPI32 _mm_sllv_epi32
+#define MAX_EPI8 _mm_max_epi8
+#define MAX_EPI16 _mm_max_epi16
+#define MAX_EPI32 _mm_max_epi32
+#define MIN_EPI8 _mm_max_epi8
+#define MIN_EPI16 _mm_max_epi16
+#define MIN_EPI32 _mm_min_epi32
+
 
 #define CVTPS_EPI32 _mm_cvtps_epi32
 #define CVTEPI32_PS _mm_cvtepi32_ps
@@ -76,6 +108,9 @@
 #endif
 #include <nmmintrin.h>
 #include <x86intrin.h>
+#include <climits>
+
+#define PLUS(a, b) ((a) + (b))
 
 namespace sheena{
 #define UNARY_OPERATION(TARGET, LOAD, STORE, OP_NAME) {\
@@ -107,6 +142,47 @@ namespace sheena{
 		STORE(TARGET + LOOP_COUNTER, OP_NAME(LOAD(w + LOOP_COUNTER), RHS0));\
 	}\
 }
+#define REDUCE_OPERATION(TYPE, INIT, INIT_SIMD, LOAD, STORE, OP_SIMD, OP_SCALAR) {\
+	TYPE ret = INIT;\
+	size_t i = 0;\
+	if(Size >= ways){\
+		MM mm = INIT_SIMD;\
+		if(Size >= ways * 4){\
+			MM mm2 = mm, mm3 = mm, mm4 = mm;\
+			const size_t e = Size - Size % (ways * 4);\
+			for(;i < e;i+=ways * 4){\
+				mm = OP_SIMD(LOAD(w + i), mm);\
+				mm2 = OP_SIMD(LOAD(w + i + ways * 1), mm2);\
+				mm3 = OP_SIMD(LOAD(w + i + ways * 2), mm3);\
+				mm4 = OP_SIMD(LOAD(w + i + ways * 3), mm4);\
+			}\
+			mm = OP_SIMD(mm, mm2);\
+			mm3 = OP_SIMD(mm3, mm4);\
+			mm = OP_SIMD(mm, mm3);\
+		}\
+		for(;i < simd_loop_end;i+=ways){\
+			mm = OP_SIMD(LOAD(w + i), mm);\
+		}\
+		alignas(16) TYPE v[16];\
+		STORE(v, mm);\
+		if(ways == 2)ret = OP_SCALAR(v[0], v[1]);\
+		if(ways == 4)ret = OP_SCALAR(OP_SCALAR(v[0], v[1]), OP_SCALAR(v[2], v[3]));\
+		if(ways >=8){\
+			ret = OP_SCALAR(OP_SCALAR(OP_SCALAR(v[0], v[1]), OP_SCALAR(v[2], v[3])), OP_SCALAR(OP_SCALAR(v[4], v[5]), OP_SCALAR(v[6], v[7])));\
+			if(ways == 16){\
+				TYPE r2 = OP_SCALAR(OP_SCALAR(OP_SCALAR(v[8], v[9]), OP_SCALAR(v[10], v[11])), OP_SCALAR(OP_SCALAR(v[12], v[13]), OP_SCALAR(v[14], v[15])));\
+				ret = OP_SCALAR(ret, r2);\
+			}\
+		}\
+		static_assert(ways == 2 || ways == 4 || ways == 8 || ways == 16, "");\
+	}\
+	if(Size != simd_loop_end){\
+		for(size_t i=simd_loop_end;i<Size;i++){\
+			ret = OP_SCALAR(ret, w[i]);\
+		}\
+	}\
+	return ret;\
+}
 #define MATH_OPERATOR_VECTOR(VECTOR, LOAD, STORE, OP, OP_NAME)\
 VECTOR operator OP(const VECTOR& rhs)const{\
 	VECTOR ret;\
@@ -134,6 +210,7 @@ void operator OP##=(TYPE rhs){\
 #define MATH_OPERATOR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME) \
 MATH_OPERATOR_VECTOR(VECTOR, LOAD, STORE, OP, OP_NAME) \
 MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
+
 	template<size_t Size>
 	class VInt;
 	template<size_t Size>
@@ -142,12 +219,16 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 	class alignas(16) VFlt{
 		friend class VInt<Size>;
 #ifdef SIMD256_AVAILABLE
-		static constexpr size_t ways = 8;
+		static constexpr size_t ways = 32 / sizeof(float);
 		using MM = __m256;
 #else
-		static constexpr size_t ways = 4;
+		static constexpr size_t ways = 16 / sizeof(float);
 		using MM = __m128;
 #endif
+		static constexpr size_t simd_loop_end = Size - Size % ways;
+		static constexpr size_t padding = Size% ways != 0 ? ways - (Size % ways) : 0;
+		static constexpr size_t size_with_padding = Size + padding;
+		float w[Size + padding];
 #ifdef FMA_ENABLE
 		static MM fma(MM v1, MM v2, MM v3){
 			return FMADD_PS(v1, v2, v3);
@@ -160,13 +241,9 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 			return ADD_PS(MUL_PS(v1, v2), v3);
 		}
 		static MM fnma(MM v1, MM v2, MM v3){
-			return FNMADD_PS(v1, v2, v3);
+			return SUB_PS(v3, MUL_PS(v1, v2));
 		}
 #endif
-		static constexpr size_t simd_loop_end = Size - Size % ways;
-		static constexpr size_t padding = Size% ways != 0 ? ways - (Size % ways) : 0;
-		static constexpr size_t size_with_padding = Size + padding;
-		float w[Size + padding];
 	public:
 		VFlt(){}
 		explicit VFlt(float f){
@@ -221,113 +298,14 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 			return ret;
 		}
 		float max()const{
-			float ret = -FLT_MAX;
-			size_t i = 0;
-			if(Size >= ways){
-				MM mm = SET1_PS(ret);
-				if(Size >= ways * 4){
-					MM mm2 = mm, mm3 = mm, mm4 = mm;
-					const size_t e = Size - Size % (ways * 4);
-					for(;i < e;i+=ways * 4){
-						mm = MAX_PS(LOAD_PS(w + i), mm);
-						mm2 = MAX_PS(LOAD_PS(w + i + ways * 1), mm2);
-						mm3 = MAX_PS(LOAD_PS(w + i + ways * 2), mm3);
-						mm4 = MAX_PS(LOAD_PS(w + i + ways * 3), mm4);
-					}
-					mm = MAX_PS(mm, mm2);
-					mm3 = MAX_PS(mm3, mm4);
-					mm = MAX_PS(mm, mm3);
-				}
-				for(;i < simd_loop_end;i+=ways){
-					mm = MAX_PS(LOAD_PS(w + i), mm);
-				}
-				alignas(ways * 4) float v[ways];
-				STORE_PS(v, mm);
-#ifdef SIMD256_AVAILABLE
-				ret = std::max(std::max(std::max(v[0], v[1]), std::max(v[2], v[3])), std::max(std::max(v[4], v[5]), std::max(v[6], v[7])));
-#else
-				ret = std::max(std::max(v[0], v[1]), std::max(v[2], v[3]));
-#endif
-			}
-			if(Size != simd_loop_end){
-				for(size_t i=simd_loop_end;i<Size;i++){
-					ret = std::max(ret, w[i]);
-				}
-			}
-			return ret;
+			REDUCE_OPERATION(float, -FLT_MAX, SET1_PS(-FLT_MAX), LOAD_PS, STORE_PS, MAX_PS, std::max);
 		}
 		float min()const{
-			float ret = FLT_MAX;
-			size_t i = 0;
-			if(Size >= ways){
-				MM mm = SET1_PS(ret);
-				if(Size >= ways * 4){
-					MM mm2 = mm, mm3 = mm, mm4 = mm;
-					const size_t e = Size - Size % (ways * 4);
-					for(;i < e;i+=ways * 4){
-						mm = MIN_PS(LOAD_PS(w + i), mm);
-						mm2 = MIN_PS(LOAD_PS(w + i + ways * 1), mm2);
-						mm3 = MIN_PS(LOAD_PS(w + i + ways * 2), mm3);
-						mm4 = MIN_PS(LOAD_PS(w + i + ways * 3), mm4);
-					}
-					mm = MIN_PS(mm, mm2);
-					mm3 = MIN_PS(mm3, mm4);
-					mm = MIN_PS(mm, mm3);
-				}
-				for(;i < simd_loop_end;i+=ways){
-					mm = MIN_PS(LOAD_PS(w + i), mm);
-				}
-				alignas(ways * 4) float v[ways];
-				STORE_PS(v, mm);
-#ifdef SIMD256_AVAILABLE
-				ret = std::min(std::min(std::min(v[0], v[1]), std::min(v[2], v[3])), std::min(std::min(v[4], v[5]), std::min(v[6], v[7])));
-#else
-				ret = std::min(std::min(v[0], v[1]), std::min(v[2], v[3]));
-#endif
-			}
-			if(Size != simd_loop_end){
-				for(size_t i=simd_loop_end;i<Size;i++){
-					ret = std::min(ret, w[i]);
-				}
-			}
-			return ret;
+			REDUCE_OPERATION(float, FLT_MAX, SET1_PS(FLT_MAX), LOAD_PS, STORE_PS, MIN_PS, std::min);
 		}
 		//合計値の計算
 		float sum()const{
-			float ret = 0;
-			size_t i = 0;
-			if(Size >= ways){
-				MM mm = SETZERO_PS();
-				if(Size >= ways * 4){
-					MM mm2 = SETZERO_PS(), mm3 = SETZERO_PS(), mm4 = SETZERO_PS();
-					const size_t e = Size - Size % (ways * 4);
-					for(;i < e;i+=ways * 4){
-						mm = ADD_PS(LOAD_PS(w + i), mm);
-						mm2 = ADD_PS(LOAD_PS(w + i + ways * 1), mm2);
-						mm3 = ADD_PS(LOAD_PS(w + i + ways * 2), mm3);
-						mm4 = ADD_PS(LOAD_PS(w + i + ways * 3), mm4);
-					}
-					mm = ADD_PS(mm, mm2);
-					mm3 = ADD_PS(mm3, mm4);
-					mm = ADD_PS(mm, mm3);
-				}
-				for(;i < simd_loop_end;i+=ways){
-					mm = ADD_PS(LOAD_PS(w + i), mm);
-				}
-				alignas(ways * 4) float v[ways];
-				STORE_PS(v, mm);
-#ifdef SIMD256_AVAILABLE
-				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
-#else
-				ret = (v[0] + v[1]) + (v[2] + v[3]);
-#endif
-			}
-			if(Size != simd_loop_end){
-				for(size_t i=simd_loop_end;i<Size;i++){
-					ret += w[i];
-				}
-			}
-			return ret;
+			REDUCE_OPERATION(float, 0, SETZERO_PS(), LOAD_PS, STORE_PS, ADD_PS, PLUS);
 		}
 		//内積計算
 		float inner_product(const VFlt<Size>& rhs)const{
@@ -400,18 +378,18 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 		}
 		VInt<Size> to_vint()const;
 	};
+
 	template<size_t Size>
 	class alignas(16) VInt{
 		friend class VFlt<Size>;
 #ifdef SIMD256_AVAILABLE
-		static constexpr size_t simd_loop_end = Size - Size % 8;
-		using MM = __m256i;
 		static constexpr size_t ways = 8;
+		using MM = __m256i;
 #else
-		static constexpr size_t simd_loop_end = Size - Size % 4;
-		using MM = __m128i;
 		static constexpr size_t ways = 4;
+		using MM = __m128i;
 #endif
+		static constexpr size_t simd_loop_end = Size - Size % ways;
 		static constexpr size_t padding = Size% ways != 0 ? ways - (Size % ways) : 0;
 		static constexpr size_t size_with_padding = Size + padding;
 		int32_t w[size_with_padding];
@@ -445,6 +423,15 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				STORE_SI(w + i, LOAD_SI(rhs. w + i));
 			}
 		}
+		int max()const{
+			REDUCE_OPERATION(int, INT_MIN, SET1_EPI32(INT_MIN), LOAD_SI, STORE_SI, MAX_EPI32, std::max);
+		}
+		int min()const{
+			REDUCE_OPERATION(int, INT_MAX, SET1_EPI32(INT_MAX), LOAD_SI, STORE_SI, MIN_EPI32, std::min);
+		}
+		int sum()const{
+			REDUCE_OPERATION(int, 0, SETZERO_SI(), LOAD_SI, STORE_SI, ADD_EPI32, PLUS);
+		}
 		MATH_OPERATOR(int, VInt<Size>, SET1_EPI32, LOAD_SI, STORE_SI, +, ADD_EPI32);
 		MATH_OPERATOR(int, VInt<Size>, SET1_EPI32, LOAD_SI, STORE_SI, -, SUB_EPI32);
 		MATH_OPERATOR(int, VInt<Size>, SET1_EPI32, LOAD_SI, STORE_SI, *, MULLO_EPI32);
@@ -464,9 +451,147 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 		}
 		VInt<Size> operator~()const{
 			size_t i = 0;
-			BINARY_OPERATION(i, w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
+			VInt<Size> ret;
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
 		}
 		VFlt<Size> to_vflt()const;
+	};
+
+	template<size_t Size>
+	class alignas(16) VInt16{
+#ifdef SIMD256_AVAILABLE
+		static constexpr size_t ways = 16;
+		using MM = __m256i;
+#else
+		static constexpr size_t ways = 8;
+		using MM = __m128i;
+#endif
+		static constexpr size_t simd_loop_end = Size - Size % ways;
+		static constexpr size_t padding = Size% ways != 0 ? ways - (Size % ways) : 0;
+		static constexpr size_t size_with_padding = Size + padding;
+		int16_t w[size_with_padding];
+	public:
+		VInt16(){}
+		explicit VInt16(int16_t x){
+			MM x_mm = SET1_EPI16(x);
+			for(size_t i=0;i<size_with_padding;i+=ways){
+				STORE_SI(w + i, x_mm);
+			}
+		}
+		VInt16(const VInt16<Size>& rhs){
+			(*this) = rhs;
+		}
+		int16_t operator[](size_t idx)const{
+			assert(idx < Size);
+			return w[idx];
+		}
+		int16_t& operator[](size_t idx){
+			assert(idx < Size);
+			return w[idx];
+		}
+		static constexpr size_t size(){return Size;}
+		void clear(){
+			for(size_t i=0;i<size_with_padding;i+=ways){
+				STORE_SI(w + i, SETZERO_SI());
+			}
+		}
+		void operator=(const VInt16<Size> rhs){
+			for(size_t i=0;i<size_with_padding;i+=ways){
+				STORE_SI(w + i, LOAD_SI(rhs. w + i));
+			}
+		}
+		int16_t max()const{
+			REDUCE_OPERATION(int16_t, -32768, SET1_EPI16(-32768), LOAD_SI, STORE_SI, MAX_EPI16, std::max);
+		}
+		int16_t min()const{
+			REDUCE_OPERATION(int16_t, 32767, SET1_EPI16(32767), LOAD_SI, STORE_SI, MIN_EPI16, std::min);
+		}
+		int16_t sum()const{
+			REDUCE_OPERATION(int16_t, 0, SETZERO_SI(), LOAD_SI, STORE_SI, ADD_EPI16, PLUS);
+		}
+		MATH_OPERATOR(int16_t, VInt16<Size>, SET1_EPI16, LOAD_SI, STORE_SI, +, ADD_EPI16);
+		MATH_OPERATOR(int16_t, VInt16<Size>, SET1_EPI16, LOAD_SI, STORE_SI, -, SUB_EPI16);
+		MATH_OPERATOR(int16_t, VInt16<Size>, SET1_EPI16, LOAD_SI, STORE_SI, *, MULLO_EPI16);
+		MATH_OPERATOR(int16_t, VInt16<Size>, SET1_EPI16, LOAD_SI, STORE_SI, &, AND_SI);
+		MATH_OPERATOR(int16_t, VInt16<Size>, SET1_EPI16, LOAD_SI, STORE_SI, |, OR_SI);
+		MATH_OPERATOR(int16_t, VInt16<Size>, SET1_EPI16, LOAD_SI, STORE_SI, ^, XOR_SI);
+		MATH_OPERATOR_VECTOR(VInt<Size>, LOAD_SI, STORE_SI, <<, SLLV_EPI32);
+		VInt16<Size> operator<<(int x)const{
+			size_t i = 0;
+			VInt16<Size> ret;
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, SLLI_EPI16, x, x, x, x);
+			return ret;
+		}
+		void operator<<=(int x){
+			size_t i = 0;
+			BINARY_OPERATION(i, w, LOAD_SI, STORE_SI, SLLI_EPI16, x, x, x, x);
+		}
+		VInt16<Size> operator~()const{
+			size_t i = 0;
+			VInt<Size> ret;
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
+		}
+	};
+
+	template<size_t Size>
+	class alignas(16) VInt8{
+#ifdef SIMD256_AVAILABLE
+		static constexpr size_t ways = 32;
+		using MM = __m256i;
+#else
+		static constexpr size_t ways = 16;
+		using MM = __m128i;
+#endif
+		static constexpr size_t simd_loop_end = Size - Size % ways;
+		static constexpr size_t padding = Size% ways != 0 ? ways - (Size % ways) : 0;
+		static constexpr size_t size_with_padding = Size + padding;
+		int8_t w[size_with_padding];
+	public:
+		VInt8(){}
+		explicit VInt8(int8_t x){
+			MM x_mm = SET1_EPI8(x);
+			for(size_t i=0;i<size_with_padding;i+=ways){
+				STORE_SI(w + i, x_mm);
+			}
+		}
+		VInt8(const VInt8<Size>& rhs){
+			(*this) = rhs;
+		}
+		int8_t operator[](size_t idx)const{
+			assert(idx < Size);
+			return w[idx];
+		}
+		int8_t& operator[](size_t idx){
+			assert(idx < Size);
+			return w[idx];
+		}
+		static constexpr size_t size(){return Size;}
+		void clear(){
+			for(size_t i=0;i<size_with_padding;i+=ways){
+				STORE_SI(w + i, SETZERO_SI());
+			}
+		}
+		void operator=(const VInt8<Size>& rhs){
+			for(size_t i=0;i<size_with_padding;i+=ways){
+				STORE_SI(w + i, LOAD_SI(rhs. w + i));
+			}
+		}
+		int8_t max()const{
+			REDUCE_OPERATION(int8_t, -128, SET1_EPI8(-128), LOAD_SI, STORE_SI, MAX_EPI8, std::max);
+		}
+		int8_t min()const{
+			REDUCE_OPERATION(int8_t, 127, SET1_EPI8(127), LOAD_SI, STORE_SI, MIN_EPI8, std::min);
+		}
+		MATH_OPERATOR(int8_t, VInt8<Size>, SET1_EPI8, LOAD_SI, STORE_SI, +, ADD_EPI8);
+		MATH_OPERATOR(int8_t, VInt8<Size>, SET1_EPI8, LOAD_SI, STORE_SI, -, SUB_EPI8);
+		MATH_OPERATOR(int8_t, VInt8<Size>, SET1_EPI8, LOAD_SI, STORE_SI, &, AND_SI);
+		MATH_OPERATOR(int8_t, VInt8<Size>, SET1_EPI8, LOAD_SI, STORE_SI, |, OR_SI);
+		MATH_OPERATOR(int8_t, VInt8<Size>, SET1_EPI8, LOAD_SI, STORE_SI, ^, XOR_SI);
+		VInt8<Size> operator~()const{
+			size_t i = 0;
+			VInt8<Size> ret;
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
+		}
 	};
 	template<size_t Size>
 	VInt<Size> VFlt<Size>::to_vint()const{
@@ -505,9 +630,14 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 #undef OR_SI
 #undef XOR_SI
 
+#undef PLUS
+
 #undef MATH_OPERATOR
 #undef MATH_OPERATOR_SCALAR
 #undef MATH_OPERATOR_VECTOR
+#undef UNARY_OPERATION
+#undef BINARY_OPERATION
+#undef REDUCE_OPERATION
 
 	class Float4 : VFlt<4>{
 	public:
