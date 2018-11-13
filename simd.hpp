@@ -72,8 +72,8 @@
 #define MIN_PS _mm_min_ps
 #define MAX_PS _mm_max_ps
 
-#define LOAD_SI(x) _mm_loadu_si128(reinterpret_cast<const __m128i*>(x))
-#define STORE_SI(x, y) _mm_storeu_si128(reinterpret_cast<__m128i*>(x), y)
+#define LOAD_SI(x) _mm_load_si128(reinterpret_cast<const __m128i*>(x))
+#define STORE_SI(x, y) _mm_store_si128(reinterpret_cast<__m128i*>(x), y)
 #define SETZERO_SI _mm_setzero_si128
 #define SET1_EPI8 _mm_set1_epi8
 #define SET1_EPI16 _mm_set1_epi16
@@ -495,7 +495,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				STORE_SI(w + i, SETZERO_SI());
 			}
 		}
-		void operator=(const VInt16<Size> rhs){
+		void operator=(const VInt16<Size>& rhs){
 			for(size_t i=0;i<size_with_padding;i+=ways){
 				STORE_SI(w + i, LOAD_SI(rhs. w + i));
 			}
