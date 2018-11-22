@@ -134,7 +134,6 @@ static void test_simd_fp(){
 	double ip = v2.inner_product(v2);
 	float ip_ = 0;
 	for(size_t i=0;i<Vfp::size();i++)ip_ += (i + 1) * (i + 1);
-	std::cout << ip << "," << ip_ << std::endl;
 	ok_if_equal(ip, ip_);
 	//スカラーとの演算のテスト
 	for(size_t i=0;i<Vfp::size();i++){
@@ -165,11 +164,75 @@ static void test_simd_fp(){
 		ok_if_equal(v[i], i + 1.0f);
 	}
 }
+
+template<typename Ty, typename VI>
+static void test_simd_int(){
+	VI vi;
+	for(size_t i = 0; i<VI::size();i++)vi[i] = i;
+	Ty max = vi[0], min = vi[0];
+	for(size_t i = 1; i<VI::size();i++){
+		max = std::max(vi[i], max);
+		min = std::min(vi[i], min);
+	}
+	ok_if_true(vi.max() == max);
+	ok_if_true(vi.min() == min);
+	if(vi.min() != min){
+		std::cout << vi.size() << "," << int64_t(min) << "," << int64_t(vi.min()) << "," << sizeof(Ty) << std::endl;
+	}
+	VI vi2(vi);
+	vi += vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] + vi2[i]));
+	}
+	vi = vi2 + vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] + vi2[i]));
+	}
+	vi = vi2;
+	vi -= vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] - vi2[i]));
+	}
+	vi = vi2 - vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] - vi2[i]));
+	}
+	vi = vi2;
+	vi |= vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] | vi2[i]));
+	}
+	vi = vi2 | vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] | vi2[i]));
+	}
+	vi = vi2;
+	vi &= vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] & vi2[i]));
+	}
+	vi = vi2 & vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] & vi2[i]));
+	}
+	vi = vi2;
+	vi ^= vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] ^ vi2[i]));
+	}
+	vi = vi2 ^ vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] ^ vi2[i]));
+	}
+}
 template<size_t Size>
 static void test_simd_sub(){
 	test_simd_fp<sheena::VFlt<Size>>();
 
 	//整数演算のテスト
+	test_simd_int<int32_t, sheena::VInt<Size>>();
+	test_simd_int<int16_t, sheena::VInt16<Size>>();
+	test_simd_int<int8_t, sheena::VInt8<Size>>();
 	sheena::VInt<Size> vi;
 	for(size_t i=0;i<Size;i++)vi[i] = i;
 	ok_if_true(vi.max() == Size - 1);
@@ -200,6 +263,8 @@ static void test_simd(){
 	test_simd_sub<6>();
 	test_simd_sub<9>();
 	test_simd_sub<12>();
+	test_simd_sub<15>();
+	test_simd_sub<18>();
 	test_simd_sub<1625>();
 }
 class State{

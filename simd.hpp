@@ -47,8 +47,8 @@
 #define MAX_EPI8 _mm256_max_epi8
 #define MAX_EPI16 _mm256_max_epi16
 #define MAX_EPI32 _mm256_max_epi32
-#define MIN_EPI8 _mm256_max_epi8
-#define MIN_EPI16 _mm256_max_epi16
+#define MIN_EPI8 _mm256_min_epi8
+#define MIN_EPI16 _mm256_min_epi16
 #define MIN_EPI32 _mm256_min_epi32
 
 
@@ -97,8 +97,8 @@
 #define MAX_EPI8 _mm_max_epi8
 #define MAX_EPI16 _mm_max_epi16
 #define MAX_EPI32 _mm_max_epi32
-#define MIN_EPI8 _mm_max_epi8
-#define MIN_EPI16 _mm_max_epi16
+#define MIN_EPI8 _mm_min_epi8
+#define MIN_EPI16 _mm_min_epi16
 #define MIN_EPI32 _mm_min_epi32
 
 
@@ -163,18 +163,17 @@ namespace sheena{
 		for(;i < simd_loop_end;i+=ways){\
 			mm = OP_SIMD(LOAD(w + i), mm);\
 		}\
-		alignas(16) TYPE v[16];\
+		alignas(16) TYPE v[ways];\
 		STORE(v, mm);\
 		if(ways == 2)ret = OP_SCALAR(v[0], v[1]);\
-		if(ways == 4)ret = OP_SCALAR(OP_SCALAR(v[0], v[1]), OP_SCALAR(v[2], v[3]));\
-		if(ways >=8){\
+		else if(ways == 4)ret = OP_SCALAR(OP_SCALAR(v[0], v[1]), OP_SCALAR(v[2], v[3]));\
+		else {\
 			ret = OP_SCALAR(OP_SCALAR(OP_SCALAR(v[0], v[1]), OP_SCALAR(v[2], v[3])), OP_SCALAR(OP_SCALAR(v[4], v[5]), OP_SCALAR(v[6], v[7])));\
-			if(ways == 16){\
-				TYPE r2 = OP_SCALAR(OP_SCALAR(OP_SCALAR(v[8], v[9]), OP_SCALAR(v[10], v[11])), OP_SCALAR(OP_SCALAR(v[12], v[13]), OP_SCALAR(v[14], v[15])));\
-				ret = OP_SCALAR(ret, r2);\
+			for(int j=8;j < ways; j += 4){\
+				ret = OP_SCALAR(ret, OP_SCALAR(OP_SCALAR(v[j + 0], v[j + 1]), OP_SCALAR(v[j + 2], v[j + 3])));\
 			}\
 		}\
-		static_assert(ways == 2 || ways == 4 || ways == 8 || ways == 16, "");\
+		static_assert(ways == 2 || ways == 4 || ways == 8 || ways == 16 || ways == 32, "");\
 	}\
 	if(Size != simd_loop_end){\
 		for(size_t i=simd_loop_end;i<Size;i++){\
