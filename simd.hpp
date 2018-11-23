@@ -419,7 +419,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				STORE_SI(w + i, SETZERO_SI());
 			}
 		}
-		void operator=(const VInt& rhs){
+		void operator=(const VInt<Size>& rhs){
 			for(size_t i=0;i<size_with_padding;i+=ways){
 				STORE_SI(w + i, LOAD_SI(rhs. w + i));
 			}
@@ -516,7 +516,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 		MATH_OPERATOR(int16_t, VInt16<Size>, SET1_EPI16, LOAD_SI, STORE_SI, &, AND_SI);
 		MATH_OPERATOR(int16_t, VInt16<Size>, SET1_EPI16, LOAD_SI, STORE_SI, |, OR_SI);
 		MATH_OPERATOR(int16_t, VInt16<Size>, SET1_EPI16, LOAD_SI, STORE_SI, ^, XOR_SI);
-		MATH_OPERATOR_VECTOR(VInt<Size>, LOAD_SI, STORE_SI, <<, SLLV_EPI32);
+		MATH_OPERATOR_VECTOR(VInt16<Size>, LOAD_SI, STORE_SI, <<, SLLV_EPI32);
 		VInt16<Size> operator<<(int x)const{
 			size_t i = 0;
 			VInt16<Size> ret;
@@ -529,8 +529,9 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 		}
 		VInt16<Size> operator~()const{
 			size_t i = 0;
-			VInt<Size> ret;
+			VInt16<Size> ret;
 			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
+			return ret;
 		}
 		//内積計算
 		int32_t inner_product(const VInt16<Size>& rhs)const{
@@ -541,19 +542,19 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				size_t i = 0;
 				if(Size >= ways * 4){
 					MM mm2 = SETZERO_SI(), mm3 = SETZERO_SI(), mm4 = SETZERO_SI();
-					const size_t e = Size - Size % (ways * 2);
+					const size_t e = Size - Size % (ways * 4);
 					for(;i < e;i+=ways * 4){
-						mm1 = ADD_EPI16(mm1, MADD_EPI16(LOAD_SI(w + i + ways * 0), LOAD_SI(rhs.w + i + ways * 0)));
-						mm2 = ADD_EPI16(mm2, MADD_EPI16(LOAD_SI(w + i + ways * 1), LOAD_SI(rhs.w + i + ways * 1)));
-						mm2 = ADD_EPI16(mm1, MADD_EPI16(LOAD_SI(w + i + ways * 2), LOAD_SI(rhs.w + i + ways * 2)));
-						mm4 = ADD_EPI16(mm1, MADD_EPI16(LOAD_SI(w + i + ways * 3), LOAD_SI(rhs.w + i + ways * 3)));
+						mm1 = ADD_EPI32(MADD_EPI16(LOAD_SI(w + i + ways * 0), LOAD_SI(rhs.w + i + ways * 0)), mm1);
+						mm2 = ADD_EPI32(MADD_EPI16(LOAD_SI(w + i + ways * 1), LOAD_SI(rhs.w + i + ways * 1)), mm2);
+						mm3 = ADD_EPI32(MADD_EPI16(LOAD_SI(w + i + ways * 2), LOAD_SI(rhs.w + i + ways * 2)), mm3);
+						mm4 = ADD_EPI32(MADD_EPI16(LOAD_SI(w + i + ways * 3), LOAD_SI(rhs.w + i + ways * 3)), mm4);
 					}
-					mm1 = ADD_PS(mm1, mm2);
-					mm3 = ADD_PS(mm3, mm4);
-					mm1 = ADD_PS(mm1, mm3);
+					mm1 = ADD_EPI32(mm1, mm2);
+					mm3 = ADD_EPI32(mm3, mm4);
+					mm1 = ADD_EPI32(mm1, mm3);
 				}
 				for(;i < simd_loop_end;i+=ways){
-					mm1 = ADD_EPI16(mm1, MADD_EPI16(LOAD_SI(w + i + ways * 0), LOAD_SI(rhs.w + i + ways * 0)));
+					mm1 = ADD_EPI32(mm1, MADD_EPI16(LOAD_SI(w + i), LOAD_SI(rhs.w + i)));
 				}
 				alignas(16) int32_t v[ways / 2];
 				STORE_SI(v, mm1);
@@ -565,7 +566,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 			}
 			if(Size != simd_loop_end){
 				for(size_t i=simd_loop_end;i<Size;i++){
-					ret += int(w[i]) + int(w[i]);
+					ret += int(w[i]) * int(w[i]);
 				}
 			}
 			return ret;
