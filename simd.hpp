@@ -51,6 +51,7 @@
 #define MIN_EPI16 _mm256_min_epi16
 #define MIN_EPI32 _mm256_min_epi32
 
+#define MADD_EPI16 _mm256_madd_epi16
 
 #define CVTPS_EPI32 _mm256_cvtps_epi32
 #define CVTEPI32_PS _mm256_cvtepi32_ps
@@ -101,6 +102,7 @@
 #define MIN_EPI16 _mm_min_epi16
 #define MIN_EPI32 _mm_min_epi32
 
+#define MADD_EPI16 _mm_madd_epi16
 
 #define CVTPS_EPI32 _mm_cvtps_epi32
 #define CVTEPI32_PS _mm_cvtepi32_ps
@@ -329,7 +331,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				for(;i < simd_loop_end;i+=ways){
 					mm = fma(LOAD_PS(w + i), LOAD_PS(rhs.w + i), mm);
 				}
-				alignas(ways * 4) float v[ways];
+				alignas(16) float v[ways];
 				STORE_PS(v, mm);
 #ifdef SIMD256_AVAILABLE
 				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
@@ -530,6 +532,44 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 			VInt<Size> ret;
 			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
 		}
+		//内積計算
+		int32_t inner_product(const VInt16<Size>& rhs)const{
+			int32_t ret = 0;
+			if(Size >= ways){
+				MM mm1 = SETZERO_SI();
+				//インライン展開
+				size_t i = 0;
+				if(Size >= ways * 4){
+					MM mm2 = SETZERO_SI(), mm3 = SETZERO_SI(), mm4 = SETZERO_SI();
+					const size_t e = Size - Size % (ways * 2);
+					for(;i < e;i+=ways * 4){
+						mm1 = ADD_EPI16(mm1, MADD_EPI16(LOAD_SI(w + i + ways * 0), LOAD_SI(rhs.w + i + ways * 0)));
+						mm2 = ADD_EPI16(mm2, MADD_EPI16(LOAD_SI(w + i + ways * 1), LOAD_SI(rhs.w + i + ways * 1)));
+						mm2 = ADD_EPI16(mm1, MADD_EPI16(LOAD_SI(w + i + ways * 2), LOAD_SI(rhs.w + i + ways * 2)));
+						mm4 = ADD_EPI16(mm1, MADD_EPI16(LOAD_SI(w + i + ways * 3), LOAD_SI(rhs.w + i + ways * 3)));
+					}
+					mm1 = ADD_PS(mm1, mm2);
+					mm3 = ADD_PS(mm3, mm4);
+					mm1 = ADD_PS(mm1, mm3);
+				}
+				for(;i < simd_loop_end;i+=ways){
+					mm1 = ADD_EPI16(mm1, MADD_EPI16(LOAD_SI(w + i + ways * 0), LOAD_SI(rhs.w + i + ways * 0)));
+				}
+				alignas(16) int32_t v[ways / 2];
+				STORE_SI(v, mm1);
+#ifdef SIMD256_AVAILABLE
+				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
+#else
+				ret = (v[0] + v[1]) + (v[2] + v[3]);
+#endif
+			}
+			if(Size != simd_loop_end){
+				for(size_t i=simd_loop_end;i<Size;i++){
+					ret += int(w[i]) + int(w[i]);
+				}
+			}
+			return ret;
+		}
 	};
 
 	template<size_t Size>
@@ -601,10 +641,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 	template<size_t Size>
 	VFlt<Size> VInt<Size>::to_vflt()const{
 		VFlt<Size> ret;
-		UNARY_OPERATION(ret.w + i,LOAD_SI, STORE_PS, CVTEPI32_PS);
-		for(size_t i=0;i<size_with_padding;i+=ways){
-			STORE_PS(ret.w + i, CVTEPI32_PS(LOAD_SI(w + i)));
-		}
+		UNARY_OPERATION(ret.w,LOAD_SI, STORE_PS, CVTEPI32_PS);
 		return ret;
 	}
 #undef ADD_PS
