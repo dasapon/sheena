@@ -346,7 +346,6 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 			}
 			return ret;
 		}
-
 		void add_product(const VFlt<Size>& v1, const VFlt<Size>& v2){
 			size_t i = 0;
 			if(size_with_padding >= 4 * ways){
@@ -362,6 +361,22 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				STORE_PS(w + i, fma(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
 			}
 		}
+		void add_product(const VFlt<Size>& v1, float x){
+			size_t i = 0;
+			MM x_mm = SET1_PS(x);
+			if(size_with_padding >= 4 * ways){
+				const size_t e = size_with_padding - size_with_padding % (ways * 4);
+				for(;i<e;i+=ways * 4){
+					STORE_PS(w + i, fma(LOAD_PS(v1.w + i), x_mm, LOAD_PS(w + i)));
+					STORE_PS(w + i + ways * 1, fma(LOAD_PS(v1.w + i + ways * 1), x_mm, LOAD_PS(w + i + ways * 1)));
+					STORE_PS(w + i + ways * 2, fma(LOAD_PS(v1.w + i + ways * 2), x_mm, LOAD_PS(w + i + ways * 2)));
+					STORE_PS(w + i + ways * 3, fma(LOAD_PS(v1.w + i + ways * 3), x_mm, LOAD_PS(w + i + ways * 3)));
+				}
+			}
+			for(;i<size_with_padding;i+=ways){
+				STORE_PS(w + i, fma(LOAD_PS(v1.w + i), x_mm, LOAD_PS(w + i)));
+			}
+		}
 		void sub_product(const VFlt<Size>& v1, const VFlt<Size>& v2){
 			size_t i = 0;
 			if(size_with_padding >= 4 * ways){
@@ -375,6 +390,22 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 			}
 			for(;i<size_with_padding;i+=ways){
 				STORE_PS(w + i, fnma(LOAD_PS(v1.w + i), LOAD_PS(v2.w + i), LOAD_PS(w + i)));
+			}
+		}
+		void sub_product(const VFlt<Size>& v1, float x){
+			size_t i = 0;
+			MM x_mm = SET1_PS(x);
+			if(size_with_padding >= 4 * ways){
+				const size_t e = size_with_padding - size_with_padding % (ways * 4);
+				for(;i<e;i+=ways * 4){
+					STORE_PS(w + i, fnma(LOAD_PS(v1.w + i), x_mm, LOAD_PS(w + i)));
+					STORE_PS(w + i + ways * 1, fnma(LOAD_PS(v1.w + i + ways * 1), x_mm, LOAD_PS(w + i + ways * 1)));
+					STORE_PS(w + i + ways * 2, fnma(LOAD_PS(v1.w + i + ways * 2), x_mm, LOAD_PS(w + i + ways * 2)));
+					STORE_PS(w + i + ways * 3, fnma(LOAD_PS(v1.w + i + ways * 3), x_mm, LOAD_PS(w + i + ways * 3)));
+				}
+			}
+			for(;i<size_with_padding;i+=ways){
+				STORE_PS(w + i, fnma(LOAD_PS(v1.w + i), x_mm, LOAD_PS(w + i)));
 			}
 		}
 		VInt<Size> to_vint()const;
