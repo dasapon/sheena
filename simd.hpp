@@ -217,7 +217,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 	template<size_t Size>
 	class VFlt;
 	template<size_t Size>
-	class alignas(16) VFlt{
+	class alignas(Size * sizeof(float) % 64 == 0? 64 : 16) VFlt{
 		friend class VInt<Size>;
 #ifdef SIMD256_AVAILABLE
 		static constexpr size_t ways = 32 / sizeof(float);
@@ -412,7 +412,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 	};
 
 	template<size_t Size>
-	class alignas(16) VInt{
+	class alignas(Size * sizeof(int) % 64 == 0? 64 : 16) VInt{
 		friend class VFlt<Size>;
 #ifdef SIMD256_AVAILABLE
 		static constexpr size_t ways = 8;
@@ -490,7 +490,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 	};
 
 	template<size_t Size>
-	class alignas(16) VInt16{
+	class alignas(Size * sizeof(int16_t) % 64 == 0? 64 : 16) VInt16{
 #ifdef SIMD256_AVAILABLE
 		static constexpr size_t ways = 16;
 		using MM = __m256i;
@@ -605,7 +605,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 	};
 
 	template<size_t Size>
-	class alignas(16) VInt8{
+	class alignas(Size * sizeof(int8_t) % 64 == 0? 64 : 16) VInt8{
 #ifdef SIMD256_AVAILABLE
 		static constexpr size_t ways = 32;
 		using MM = __m256i;

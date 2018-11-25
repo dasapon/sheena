@@ -70,12 +70,15 @@ namespace sheena{
 			(*this) = base;
 		}
 		~ArrayAlloc(){
-			if(array_ != nullptr)delete[] array_;
+			if(array_ != nullptr)_mm_free(reinterpret_cast<void*>(array_));
 		}
 		void resize(size_t sz){
+			resize(sz, 16);
+		}
+		void resize(size_t sz, size_t align){
 			if(sz == 0)throw std::invalid_argument("array size is zero");
-			if(array_ != nullptr)delete[] array_;
-			array_ = new Ty[sz];
+			if(array_ != nullptr)_mm_free(reinterpret_cast<void*>(array_));
+			array_ = reinterpret_cast<Ty*>(_mm_malloc(sizeof(Ty) * sz, align));
 			if(array_ == nullptr)throw std::bad_alloc();
 			size_ = sz;
 		}
