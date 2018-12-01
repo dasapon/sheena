@@ -225,6 +225,20 @@ static void test_simd_int(){
 		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] ^ vi2[i]));
 	}
 }
+template<typename Ty, typename VI>
+static void test_simd_int_mul(){
+	VI vi;
+	for(size_t i=0;i<VI::size();i++)vi[i] = i;
+	VI vi2(vi);
+	vi *= vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] * vi2[i]));
+	}
+	vi = vi2 * vi2;
+	for(size_t i=0;i<VI::size();i++){
+		ok_if_true(vi[i] == static_cast<Ty>(vi2[i] * vi2[i]));
+	}
+}
 template<size_t Size>
 static void test_simd_sub(){
 	test_simd_fp<sheena::VFlt<Size>>();
@@ -233,20 +247,24 @@ static void test_simd_sub(){
 	test_simd_int<int32_t, sheena::VInt<Size>>();
 	test_simd_int<int16_t, sheena::VInt16<Size>>();
 	test_simd_int<int8_t, sheena::VInt8<Size>>();
-	sheena::VInt<Size> vi;
-	for(size_t i=0;i<Size;i++)vi[i] = i;
-	ok_if_true(vi.max() == Size - 1);
-	ok_if_true(vi.min() == 0);
-	ok_if_true(vi.sum() == (Size - 1) * Size / 2);
-	sheena::VInt<Size> vi2(vi);
-	vi *= vi2;
-	for(size_t i=0;i<Size;i++){
-		ok_if_true(vi[i] == int(i) * int(i));
+	//乗算のテスト
+	test_simd_int_mul<int32_t, sheena::VInt<Size>>();
+	test_simd_int_mul<int16_t, sheena::VInt16<Size>>();
+	//内積計算のテスト
+	sheena::VInt16<Size> vi16, vi16_2;
+	int32_t correct_ip = 0;
+	for(int i=0;i<Size;i++){
+		vi16[i] = i + 1;
+		vi16_2[i] = 2 - i;
+		correct_ip += static_cast<int16_t>(i + 1) * static_cast<int16_t>(2 - i);
 	}
-	//変換のテスト
+	ok_if_true(correct_ip == vi16.inner_product(vi16_2));
+	ok_if_true(correct_ip == vi16_2.inner_product(vi16));
+	//float, intnの変換のテスト
+
 	sheena::VFlt<Size> vflt;
 	for(int i=0;i<Size;i++)vflt[i] = i -2;
-	vi = vflt.to_vint();
+	sheena::VInt<Size> vi = vflt.to_vint();
 	for(size_t i=0;i<Size;i++){
 		ok_if_equal(float(vi[i]), vflt[i]);
 	}

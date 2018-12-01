@@ -116,32 +116,13 @@
 
 namespace sheena{
 #define UNARY_OPERATION(TARGET, LOAD, STORE, OP_NAME) {\
-	size_t i = 0;\
-	if(size_with_padding >= 4 * ways){\
-		const size_t e = size_with_padding - size_with_padding % (ways * 4);\
-		for(;i<e;i+=ways * 4){\
-			STORE(TARGET + i, OP_NAME(LOAD(w + i)));\
-			STORE(TARGET + i + ways * 1, OP_NAME(LOAD(w + i + ways * 1)));\
-			STORE(TARGET + i + ways * 2, OP_NAME(LOAD(w + i + ways * 2)));\
-			STORE(TARGET + i + ways * 3, OP_NAME(LOAD(w + i + ways * 3)));\
-		}\
-	}\
-	for(;i<size_with_padding;i+=ways){\
+	for(size_t i = 0;i<size_with_padding;i+=ways){\
 		STORE(TARGET + i, OP_NAME(LOAD(w + i)));\
 	}\
 }
-#define BINARY_OPERATION(LOOP_COUNTER, TARGET, LOAD, STORE, OP_NAME, RHS0, RHS1, RHS2, RHS3) {\
-	if(size_with_padding >= 4 * ways){\
-		const size_t e = size_with_padding - size_with_padding % (ways * 4);\
-		for(; LOOP_COUNTER < e; LOOP_COUNTER += ways * 4){\
-			STORE(TARGET + LOOP_COUNTER, OP_NAME(LOAD(w + i), RHS0));\
-			STORE(TARGET + LOOP_COUNTER + ways * 1, OP_NAME(LOAD(w + LOOP_COUNTER + ways * 1), RHS1));\
-			STORE(TARGET + LOOP_COUNTER + ways * 2, OP_NAME(LOAD(w + LOOP_COUNTER + ways * 2), RHS2));\
-			STORE(TARGET + LOOP_COUNTER + ways * 3, OP_NAME(LOAD(w + LOOP_COUNTER + ways * 3), RHS3));\
-		}\
-	}\
+#define BINARY_OPERATION(LOOP_COUNTER, TARGET, LOAD, STORE, OP_NAME, RHS) {\
 	for(; LOOP_COUNTER < size_with_padding; LOOP_COUNTER += ways){\
-		STORE(TARGET + LOOP_COUNTER, OP_NAME(LOAD(w + LOOP_COUNTER), RHS0));\
+		STORE(TARGET + LOOP_COUNTER, OP_NAME(LOAD(w + LOOP_COUNTER), RHS));\
 	}\
 }
 #define REDUCE_OPERATION(TYPE, INIT, INIT_SIMD, LOAD, STORE, OP_SIMD, OP_SCALAR) {\
@@ -188,25 +169,25 @@ namespace sheena{
 VECTOR operator OP(const VECTOR& rhs)const{\
 	VECTOR ret;\
 	size_t i = 0;\
-	BINARY_OPERATION(i, ret.w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i), LOAD(rhs.w + i + 1 * ways), LOAD(rhs.w + i + 2 * ways), LOAD(rhs.w + i + 3 * ways));\
+	BINARY_OPERATION(i, ret.w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i));\
 	return ret;\
 }\
 void operator OP##=(const VECTOR& rhs){\
 	size_t i = 0;\
-	BINARY_OPERATION(i, w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i), LOAD(rhs.w + i + 1 * ways), LOAD(rhs.w + i + 2 * ways), LOAD(rhs.w + i + 3 * ways));\
+	BINARY_OPERATION(i, w, LOAD, STORE, OP_NAME, LOAD(rhs.w + i));\
 }
 #define MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME) \
 VECTOR operator OP(TYPE rhs)const{\
 	VECTOR ret;\
 	MM rhs_mm = SET1(rhs);\
 	size_t i = 0;\
-	BINARY_OPERATION(i, ret.w, LOAD, STORE, OP_NAME, rhs_mm, rhs_mm, rhs_mm, rhs_mm);\
+	BINARY_OPERATION(i, ret.w, LOAD, STORE, OP_NAME, rhs_mm);\
 	return ret;\
 }\
 void operator OP##=(TYPE rhs){\
 	MM rhs_mm = SET1(rhs);\
 	size_t i = 0;\
-	BINARY_OPERATION(i, w, LOAD, STORE, OP_NAME, rhs_mm, rhs_mm, rhs_mm, rhs_mm);\
+	BINARY_OPERATION(i, w, LOAD, STORE, OP_NAME, rhs_mm);\
 }
 #define MATH_OPERATOR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME) \
 MATH_OPERATOR_VECTOR(VECTOR, LOAD, STORE, OP, OP_NAME) \
@@ -474,17 +455,17 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 		VInt<Size> operator<<(int x)const{
 			size_t i = 0;
 			VInt<Size> ret;
-			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, SLLI_EPI32, x, x, x, x);
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, SLLI_EPI32, x);
 			return ret;
 		}
 		void operator<<=(int x){
 			size_t i = 0;
-			BINARY_OPERATION(i, w, LOAD_SI, STORE_SI, SLLI_EPI32, x, x, x, x);
+			BINARY_OPERATION(i, w, LOAD_SI, STORE_SI, SLLI_EPI32, x);
 		}
 		VInt<Size> operator~()const{
 			size_t i = 0;
 			VInt<Size> ret;
-			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i);
 		}
 		VFlt<Size> to_vflt()const;
 	};
@@ -551,17 +532,17 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 		VInt16<Size> operator<<(int x)const{
 			size_t i = 0;
 			VInt16<Size> ret;
-			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, SLLI_EPI16, x, x, x, x);
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, SLLI_EPI16, x);
 			return ret;
 		}
 		void operator<<=(int x){
 			size_t i = 0;
-			BINARY_OPERATION(i, w, LOAD_SI, STORE_SI, SLLI_EPI16, x, x, x, x);
+			BINARY_OPERATION(i, w, LOAD_SI, STORE_SI, SLLI_EPI16, x);
 		}
 		VInt16<Size> operator~()const{
 			size_t i = 0;
 			VInt16<Size> ret;
-			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i);
 			return ret;
 		}
 		//内積計算
@@ -584,8 +565,10 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 					mm3 = ADD_EPI32(mm3, mm4);
 					mm1 = ADD_EPI32(mm1, mm3);
 				}
-				for(;i < simd_loop_end;i+=ways){
-					mm1 = ADD_EPI32(mm1, MADD_EPI16(LOAD_SI(w + i), LOAD_SI(rhs.w + i)));
+				if(Size % (ways * 4) != 0){
+					for(;i < simd_loop_end;i+=ways){
+						mm1 = ADD_EPI32(mm1, MADD_EPI16(LOAD_SI(w + i), LOAD_SI(rhs.w + i)));
+					}
 				}
 				alignas(16) int32_t v[ways / 2];
 				STORE_SI(v, mm1);
@@ -597,7 +580,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 			}
 			if(Size != simd_loop_end){
 				for(size_t i=simd_loop_end;i<Size;i++){
-					ret += int(w[i]) * int(w[i]);
+					ret += int(w[i]) * int(rhs.w[i]);
 				}
 			}
 			return ret;
@@ -661,7 +644,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 		VInt8<Size> operator~()const{
 			size_t i = 0;
 			VInt8<Size> ret;
-			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i, w + i + ways, w + i + ways * 2, w + i + ways * 3);
+			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i);
 		}
 	};
 	template<size_t Size>
@@ -680,23 +663,50 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 #undef SUB_PS
 #undef MUL_PS
 #undef DIV_PS
-#undef FMADD_PS 
+#undef FMADD_PS
 #undef SET1_PS
 #undef LOAD_PS
 #undef STORE_PS
 #undef SETZERO_PS
 #undef FNMADD_PS
+#undef SQRT_PS
+#undef RSQRT_PS
+#undef MIN_PS
+#undef MAX_PS
 
 #undef LOAD_SI
-#undef STORE_SI 
+#undef STORE_SI
 #undef SETZERO_SI
-#undef SET1_EPI
-#undef ADD_EPI
-#undef SUB_EPI
-#undef MULLO_EPI
+#undef SET1_EPI8
+#undef SET1_EPI16
+#undef SET1_EPI32
+#undef ADD_EPI8
+#undef ADD_EPI16
+#undef ADD_EPI32
+#undef SUB_EPI8
+#undef SUB_EPI16
+#undef SUB_EPI32
+#undef MULLO_EPI16
+#undef MULLO_EPI32
 #undef AND_SI
+#undef ANDNOT_SI
 #undef OR_SI
 #undef XOR_SI
+#undef SLLI_EPI16
+#undef SLLI_EPI32
+#undef SLLV_EPI16
+#undef SLLV_EPI32
+#undef MAX_EPI8
+#undef MAX_EPI16
+#undef MAX_EPI32
+#undef MIN_EPI8
+#undef MIN_EPI16
+#undef MIN_EPI32
+
+#undef MADD_EPI16
+
+#undef CVTPS_EPI32
+#undef CVTEPI32_PS
 
 #undef PLUS
 
