@@ -36,7 +36,7 @@ namespace sheena{
 		Array(const Array<Ty, Size>& base){
 			(*this) = base;
 		}
-		static size_t size(){return Size;}
+		static constexpr size_t size(){return Size;}
 		const Ty& operator[](size_t idx)const{
 			assert(idx < Size);
 			return array_[idx];
