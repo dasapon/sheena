@@ -5,7 +5,7 @@
 #endif
 #if defined(__AVX512F__) && !defined(NO_SIMD256)
 #define SIMD512_AVAILABLE
-#include <zmmintrin.h>
+#include <x86intrin.h>
 
 #define ADD_PS _mm512_add_ps
 #define SUB_PS _mm512_sub_ps
@@ -18,7 +18,7 @@
 #define SETZERO_PS _mm512_setzero_ps
 #define FNMADD_PS _mm512_fnmadd_ps
 #define SQRT_PS _mm512_sqrt_ps
-#define RSQRT_PS _mm512_rsqrt_ps
+#define RSQRT_PS _mm512_rsqrt14_ps
 #define MIN_PS _mm512_min_ps
 #define MAX_PS _mm512_max_ps
 
@@ -209,7 +209,7 @@ namespace sheena{
 				ret = OP_SCALAR(ret, OP_SCALAR(OP_SCALAR(v[j + 0], v[j + 1]), OP_SCALAR(v[j + 2], v[j + 3])));\
 			}\
 		}\
-		static_assert(ways == 2 || ways == 4 || ways == 8 || ways == 16 || ways == 32, "");\
+		static_assert(ways == 2 || ways == 4 || ways == 8 || ways == 16 || ways == 32 || ways == 64, "");\
 	}\
 	if(Size != simd_loop_end){\
 		for(size_t i=simd_loop_end;i<Size;i++){\
