@@ -3,7 +3,60 @@
 #ifdef __FMA__
 #define FMA_ENABLE
 #endif
-#if defined(__AVX__) && defined(__AVX2__) && !defined(NO_SIMD256)
+#if defined(__AVX512F__) && !defined(NO_SIMD256)
+#define SIMD512_AVAILABLE
+#include <zmmintrin.h>
+
+#define ADD_PS _mm512_add_ps
+#define SUB_PS _mm512_sub_ps
+#define MUL_PS _mm512_mul_ps
+#define DIV_PS _mm512_div_ps
+#define FMADD_PS _mm512_fmadd_ps
+#define SET1_PS _mm512_set1_ps
+#define LOAD_PS _mm512_loadu_ps
+#define STORE_PS _mm512_storeu_ps
+#define SETZERO_PS _mm512_setzero_ps
+#define FNMADD_PS _mm512_fnmadd_ps
+#define SQRT_PS _mm512_sqrt_ps
+#define RSQRT_PS _mm512_rsqrt_ps
+#define MIN_PS _mm512_min_ps
+#define MAX_PS _mm512_max_ps
+
+#define LOAD_SI(x) _mm512_loadu_si512(reinterpret_cast<const __m512i*>(x))
+#define STORE_SI(x, y) _mm512_storeu_si512(reinterpret_cast<__m512i*>(x), y)
+#define SETZERO_SI _mm512_setzero_si512
+#define SET1_EPI8 _mm512_set1_epi8
+#define SET1_EPI16 _mm512_set1_epi16
+#define SET1_EPI32 _mm512_set1_epi32
+#define ADD_EPI8 _mm512_add_epi8
+#define ADD_EPI16 _mm512_add_epi16
+#define ADD_EPI32 _mm512_add_epi32
+#define SUB_EPI8 _mm512_sub_epi8
+#define SUB_EPI16 _mm512_sub_epi16
+#define SUB_EPI32 _mm512_sub_epi32
+#define MULLO_EPI16 _mm512_mullo_epi16
+#define MULLO_EPI32 _mm512_mullo_epi32
+#define AND_SI _mm512_and_si512
+#define ANDNOT_SI _mm512_andnot_si512
+#define OR_SI _mm512_or_si512
+#define XOR_SI _mm512_xor_si512
+#define SLLI_EPI16 _mm512_slli_epi16
+#define SLLI_EPI32 _mm512_slli_epi32
+#define SLLV_EPI16 _mm512_sllv_epi16
+#define SLLV_EPI32 _mm512_sllv_epi32
+#define MAX_EPI8 _mm512_max_epi8
+#define MAX_EPI16 _mm512_max_epi16
+#define MAX_EPI32 _mm512_max_epi32
+#define MIN_EPI8 _mm512_min_epi8
+#define MIN_EPI16 _mm512_min_epi16
+#define MIN_EPI32 _mm512_min_epi32
+
+#define MADD_EPI16 _mm512_madd_epi16
+
+#define CVTPS_EPI32 _mm512_cvtps_epi32
+#define CVTEPI32_PS _mm512_cvtepi32_ps
+
+#elif defined(__AVX__) && defined(__AVX2__) && !defined(NO_SIMD256)
 #define SIMD256_AVAILABLE
 #include <immintrin.h>
 
@@ -200,7 +253,10 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 	template<size_t Size>
 	class alignas(Size * sizeof(float) % 64 == 0? 64 : 16) VFlt{
 		friend class VInt<Size>;
-#ifdef SIMD256_AVAILABLE
+#ifdef SIMD512_AVAILABLE
+		static constexpr size_t ways = 64 / sizeof(float);
+		using MM = __m512;
+#elif defined(SIMD256_AVAILABLE)
 		static constexpr size_t ways = 32 / sizeof(float);
 		using MM = __m256;
 #else
@@ -314,7 +370,10 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				}
 				alignas(16) float v[ways];
 				STORE_PS(v, mm);
-#ifdef SIMD256_AVAILABLE
+#ifdef SIMD512_AVAILABLE
+				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
+				ret += ((v[8] + v[9]) + (v[10] + v[11])) + ((v[12] + v[13]) + (v[14] + v[15]));
+#elif defined(SIMD256_AVAILABLE)
 				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
 #else
 				ret = (v[0] + v[1]) + (v[2] + v[3]);
@@ -395,7 +454,10 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 	template<size_t Size>
 	class alignas(Size * sizeof(int) % 64 == 0? 64 : 16) VInt{
 		friend class VFlt<Size>;
-#ifdef SIMD256_AVAILABLE
+#ifdef SIMD512_AVAILABLE
+		static constexpr size_t ways = 16;
+		using MM = __m512i;
+#elif defined(SIMD256_AVAILABLE)
 		static constexpr size_t ways = 8;
 		using MM = __m256i;
 #else
@@ -472,7 +534,10 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 
 	template<size_t Size>
 	class alignas(Size * sizeof(int16_t) % 64 == 0? 64 : 16) VInt16{
-#ifdef SIMD256_AVAILABLE
+#ifdef SIMD512_AVAILABLE
+		static constexpr size_t ways = 32;
+		using MM = __m512i;
+#elif defined(SIMD256_AVAILABLE)
 		static constexpr size_t ways = 16;
 		using MM = __m256i;
 #else
@@ -572,7 +637,10 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				}
 				alignas(16) int32_t v[ways / 2];
 				STORE_SI(v, mm1);
-#ifdef SIMD256_AVAILABLE
+#ifdef SIMD512_AVAILABLE
+				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
+				ret += ((v[8] + v[9]) + (v[10] + v[11])) + ((v[12] + v[13]) + (v[14] + v[15]));
+#elif defined(SIMD256_AVAILABLE)
 				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
 #else
 				ret = (v[0] + v[1]) + (v[2] + v[3]);
@@ -589,7 +657,10 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 
 	template<size_t Size>
 	class alignas(Size * sizeof(int8_t) % 64 == 0? 64 : 16) VInt8{
-#ifdef SIMD256_AVAILABLE
+#ifdef SIMD512_AVAILABLE
+		static constexpr size_t ways = 64;
+		using MM = __m512i;
+#elif defined(SIMD256_AVAILABLE)
 		static constexpr size_t ways = 32;
 		using MM = __m256i;
 #else
