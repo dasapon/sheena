@@ -20,7 +20,7 @@
 #define SQRT_PS _mm256_sqrt_ps
 #define RSQRT_PS _mm256_rsqrt_ps
 #define MIN_PS _mm256_min_ps
-#define MAX_PS _mm256_min_ps
+#define MAX_PS _mm256_max_ps
 
 #define LOAD_SI(x) _mm256_loadu_si256(reinterpret_cast<const __m256i*>(x))
 #define STORE_SI(x, y) _mm256_storeu_si256(reinterpret_cast<__m256i*>(x), y)
