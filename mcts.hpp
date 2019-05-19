@@ -18,7 +18,7 @@ namespace sheena::mcts{
 	//そのStateにおける行動とそれらの事前確率を得る
 	//戻り値は手番プレイヤの番号(0, 1, ... NPlayer-1)
 	//また、ゲーム終了時には可能な行動数を0として返す
-	//int get_actions(int&, sheena::Array<Action, MaxAction>&, sheena::Array<float, MaxAction>&, size_t thread_id)const;
+	//int get_actions(int&, sheena::Array<Action, MaxAction>&, sheena::Array<float, MaxAction>&, size_t thread_id);
 	//終端に達しているか否かを判定する
 	//bool terminate(sheena::Array<double, NPlayer>&, size_t thread_id)const;
 	//局面のハッシュ値を返す
@@ -72,7 +72,7 @@ namespace sheena::mcts{
 			uint64_t key()const{return key_;}
 			int generation()const{return generation_;}
 			void update_generation(int gen){generation_ = gen;}
-			bool set_up(const State& state, int gen, int thread_id){
+			bool set_up(State& state, int gen, int thread_id){
 				generation_ = gen;
 				key_ = state.key();
 				total_played = 0;
