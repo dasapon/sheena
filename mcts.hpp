@@ -165,9 +165,7 @@ namespace sheena::mcts{
 			generation_ = 1;
 			resize_tt(32);
 		}
-		void search(const State& root, size_t time_limit, size_t po){
-			generation_++;
-			if(generation_ < 0)generation_ = 1;
+		void re_search(const State& root, size_t time_limit, size_t po){
 			std::mutex mtx;
 			size_t cnt = 0;
 			auto proce = [&](size_t thread_id){
@@ -191,6 +189,11 @@ namespace sheena::mcts{
 			for(size_t i=0;i<threads.size();i++){
 				threads[i].join();
 			}
+		}
+		void search(const State& root, size_t time_limit, size_t po){
+			generation_++;
+			if(generation_ < 0)generation_ = 1;
+			re_search(root, time_limit, po);
 		}
 		void clear_tt(){
 			for(size_t i=0;i<tt.size();i++){
