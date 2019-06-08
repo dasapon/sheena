@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 #include <exception>
-#include <x86intrin.h>
 
 namespace sheena{
 	template<typename Ty, typename F>

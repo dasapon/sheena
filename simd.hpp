@@ -5,7 +5,7 @@
 #endif
 #if defined(__AVX512F__) && !defined(NO_SIMD256)
 #define SIMD512_AVAILABLE
-#include <x86intrin.h>
+#include <zmmintrin.h>
 
 #define ADD_PS _mm512_add_ps
 #define SUB_PS _mm512_sub_ps
@@ -162,7 +162,6 @@
 
 #endif
 #include <nmmintrin.h>
-#include <x86intrin.h>
 #include <climits>
 
 #define PLUS(a, b) ((a) + (b))
