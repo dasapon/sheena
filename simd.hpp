@@ -3,9 +3,15 @@
 #ifdef __FMA__
 #define FMA_ENABLE
 #endif
+
+#ifdef MSC_VER
+#include <intrin.h>
+#else 
+#include <x86intrin.h>
+#endif
+
 #if defined(__AVX512F__) && !defined(NO_SIMD256)
 #define SIMD512_AVAILABLE
-#include <zmmintrin.h>
 
 #define ADD_PS _mm512_add_ps
 #define SUB_PS _mm512_sub_ps
@@ -58,7 +64,6 @@
 
 #elif defined(__AVX__) && defined(__AVX2__) && !defined(NO_SIMD256)
 #define SIMD256_AVAILABLE
-#include <immintrin.h>
 
 #define ADD_PS _mm256_add_ps
 #define SUB_PS _mm256_sub_ps

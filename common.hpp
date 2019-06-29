@@ -7,6 +7,12 @@
 #include <vector>
 #include <exception>
 
+#ifdef MSC_VER
+#include <intrin.h>
+#else 
+#include <x86intrin.h>
+#endif
+
 namespace sheena{
 	template<typename Ty, typename F>
 	void remove(std::vector<Ty>& v, F f){
