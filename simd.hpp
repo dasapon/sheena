@@ -639,18 +639,25 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 						mm1 = ADD_EPI32(mm1, MADD_EPI16(LOAD_SI(w + i), LOAD_SI(rhs.w + i)));
 					}
 				}
+#ifdef SIMD512_AVAILABLE
 				alignas(16) int32_t v[ways / 2];
 				STORE_SI(v, mm1);
-#ifdef SIMD512_AVAILABLE
 				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
 				ret += ((v[8] + v[9]) + (v[10] + v[11])) + ((v[12] + v[13]) + (v[14] + v[15]));
-#elif defined(SIMD256_AVAILABLE)
-				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
 #else
+				alignas(16) int32_t v[4];
+#if defined(SIMD256_AVAILABLE)
+				__m128i a, b;
+				a = _mm256_extracti128_si256(mm1, 0);
+				b = _mm256_extracti128_si256(mm1, 1);
+				a = _mm_add_epi32(a, b);
+				_mm_store_si128(reinterpret_cast<__m128i*>(v), a);
+#else
+				_mm_store_si128(reinterpret_cast<__m128i*>(v), mm1);
+#endif
+
 				ret = (v[0] + v[1]) + (v[2] + v[3]);
 #endif
-			}
-			if(Size != simd_loop_end){
 				for(size_t i=simd_loop_end;i<Size;i++){
 					ret += int(w[i]) * int(rhs.w[i]);
 				}
