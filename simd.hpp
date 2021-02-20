@@ -622,7 +622,12 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				//インライン展開
 				size_t i = 0;
 				if(Size >= ways * 4){
-					MM mm2 = SETZERO_SI(), mm3 = SETZERO_SI(), mm4 = SETZERO_SI();
+					MM mm2, mm3, mm4;
+					mm1 = MADD_EPI16(LOAD_SI(w + ways * 0), LOAD_SI(rhs.w + ways * 0));
+					mm2 = MADD_EPI16(LOAD_SI(w + ways * 1), LOAD_SI(rhs.w + ways * 1));
+					mm3 = MADD_EPI16(LOAD_SI(w + ways * 2), LOAD_SI(rhs.w + ways * 2));
+					mm4 = MADD_EPI16(LOAD_SI(w + ways * 3), LOAD_SI(rhs.w + ways * 3));
+					i = ways * 4;
 					const size_t e = Size - Size % (ways * 4);
 					for(;i < e;i+=ways * 4){
 						mm1 = ADD_EPI32(MADD_EPI16(LOAD_SI(w + i + ways * 0), LOAD_SI(rhs.w + i + ways * 0)), mm1);
