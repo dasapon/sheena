@@ -34,7 +34,7 @@ namespace sheena::mcts{
 		int expansion_threshold;
 		int virtual_loss;
 		double vl_reward;
-		ArrayAlloc<std::thread> threads;
+		std::vector<std::thread> threads;
 	public:
 	private:
 		struct Edge{
