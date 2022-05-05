@@ -46,4 +46,26 @@ namespace sheena{
 #endif
 		return ret;
 	}
+	inline int bsr64(uint64_t x){
+#ifdef _MSC_VER
+		unsigned long ret = 0;
+		_BitScanReverse64(&ret, x);
+#elif defined(__x86_64__)
+		int ret = 63 - __builtin_clzll(x);
+#else
+		static_assert(false);
+#endif
+		return ret;
+	}
+	inline int bsr32(uint32_t x){
+#ifdef _MSC_VER
+		unsigned long ret = 0;
+		_BitScanReverse(&ret, x);
+#elif defined(__x86_64__)
+		int ret = 63 - __builtin_clz(x);
+#else
+		static_assert(false);
+#endif
+		return ret;
+	}
 }
