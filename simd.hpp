@@ -372,16 +372,18 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 				for(;i < simd_loop_end;i+=ways){
 					mm = fma(LOAD_PS(w + i), LOAD_PS(rhs.w + i), mm);
 				}
-				alignas(16) float v[ways];
-				STORE_PS(v, mm);
+				alignas(16) float v[4];
 #ifdef SIMD512_AVAILABLE
-				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
-				ret += ((v[8] + v[9]) + (v[10] + v[11])) + ((v[12] + v[13]) + (v[14] + v[15]));
+				__m256 m256 = _mm256_add_ps(_mm512_extractf32x8_ps(mm, 0), _mm512_extractf32x8_ps(mm, 1));
+				__m128 m128 = _mm_add_ps(_mm256_extractf128_ps(m256, 0), _mm256_extractf128_ps(m256, 1));
+				_mm_store_ps(v, m128);
 #elif defined(SIMD256_AVAILABLE)
-				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
+				__m128 m128 = _mm_add_ps(_mm256_extractf128_ps(mm, 0), _mm256_extractf128_ps(mm, 1));
+				_mm_store_ps(v, m128);
 #else
-				ret = (v[0] + v[1]) + (v[2] + v[3]);
+				_mm_store_ps(v, mm);
 #endif
+				ret = (v[0] + v[1]) + (v[2] + v[3]);
 			}
 			if(Size != simd_loop_end){
 				for(size_t i=simd_loop_end;i<Size;i++){
@@ -644,14 +646,12 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 						mm1 = ADD_EPI32(mm1, MADD_EPI16(LOAD_SI(w + i), LOAD_SI(rhs.w + i)));
 					}
 				}
-#ifdef SIMD512_AVAILABLE
-				alignas(16) int32_t v[ways / 2];
-				STORE_SI(v, mm1);
-				ret = ((v[0] + v[1]) + (v[2] + v[3])) + ((v[4] + v[5]) + (v[6] + v[7]));
-				ret += ((v[8] + v[9]) + (v[10] + v[11])) + ((v[12] + v[13]) + (v[14] + v[15]));
-#else
 				alignas(16) int32_t v[4];
-#if defined(SIMD256_AVAILABLE)
+#ifdef SIMD512_AVAILABLE
+				__m256i m256a = _mm256_add_epi32(_mm512_extracti32x8_epi32(mm1, 0), _mm512_extracti32x8_epi32(mm1, 1));
+				__m128i m128a = _mm_add_epi32(_mm256_extracti128_si256(m256a, 0), _mm256_extracti128_si256(m256a, 1));
+				_mm_store_si128(reinterpret_cast<__m128i*>(v), m128a);
+#elif defined(SIMD256_AVAILABLE)
 				__m128i a, b;
 				a = _mm256_extracti128_si256(mm1, 0);
 				b = _mm256_extracti128_si256(mm1, 1);
@@ -662,7 +662,6 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 #endif
 
 				ret = (v[0] + v[1]) + (v[2] + v[3]);
-#endif
 			}
 			for(size_t i=simd_loop_end;i<Size;i++){
 				ret += int(w[i]) * int(rhs.w[i]);
