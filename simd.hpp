@@ -663,9 +663,9 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 
 				ret = (v[0] + v[1]) + (v[2] + v[3]);
 #endif
-				for(size_t i=simd_loop_end;i<Size;i++){
-					ret += int(w[i]) * int(rhs.w[i]);
-				}
+			}
+			for(size_t i=simd_loop_end;i<Size;i++){
+				ret += int(w[i]) * int(rhs.w[i]);
 			}
 			return ret;
 		}
