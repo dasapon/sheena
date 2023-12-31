@@ -9,6 +9,7 @@
 #else 
 #include <x86intrin.h>
 #endif
+#include <iostream>
 
 #if defined(__AVX512F__) && !defined(NO_SIMD256)
 #define SIMD512_AVAILABLE
@@ -456,7 +457,8 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 		}
 		VInt<Size> to_vint()const;
 	};
-
+	template<size_t Size>
+	class VInt8;
 	template<size_t Size>
 	class alignas(Size * sizeof(int) % 64 == 0? 64 : 16) VInt{
 		friend class VFlt<Size>;
@@ -540,6 +542,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 
 	template<size_t Size>
 	class alignas(Size * sizeof(int16_t) % 64 == 0? 64 : 16) VInt16{
+		friend class VInt8<Size>;
 #ifdef SIMD512_AVAILABLE
 		static constexpr size_t ways = 32;
 		using MM = __m512i;
@@ -731,6 +734,35 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 			size_t i = 0;
 			VInt8<Size> ret;
 			BINARY_OPERATION(i, ret.w, LOAD_SI, STORE_SI, ANDNOT_SI, w + i);
+		}
+		VInt16<Size> to_i16()const{
+			VInt16<Size> vi16;
+#ifdef SIMD512_AVAILABLE
+			//ループ内で, 16bit整数x32個分のconvertを行う
+			for(size_t i=0;i<vi16.size_with_padding;i+=vi16.ways){
+				MM x = _mm512_cvtepi8_epi16(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(w + i)));
+				STORE_SI(vi16.w + i, x);
+			}
+#elif defined(SIMD256_AVAILABLE)
+			//ループ内で, 16bit整数x16個分のconvertを行う
+			for(size_t i=0;i<vi16.size_with_padding;i+=vi16.ways){
+				MM x = _mm256_cvtepi8_epi16(_mm256_loadu_si256(reinterpret_cast<const __m128i*>(w + i)));
+				STORE_SI(vi16.w + i, x);
+			}
+#else
+			//ループ内で, 16bit整数x16個分のconvertを行う.
+			size_t i;
+			for(i=0;i<(vi16.size_with_padding & ~1);i+=ways){
+				MM lh = LOAD_SI(w + i);
+				STORE_SI(vi16.w+i, _mm_cvtepi8_epi16(lh));
+				STORE_SI(vi16.w+vi16.ways+i, _mm_cvtepi8_epi16(_mm_unpackhi_epi64(lh, lh)));
+			}
+			if(vi16.size_with_padding%2 !=0){
+				MM lh = LOAD_SI(w + i);
+				STORE_SI(vi16.w+i, _mm_cvtepi8_epi16(lh));
+			}
+#endif
+			return vi16;
 		}
 	};
 	template<size_t Size>

@@ -275,6 +275,17 @@ static void test_simd_sub(){
 	for(size_t i=0;i<Size;i++){
 		ok_if_equal(float(vi[i]), vflt[i]);
 	}
+	//int8からint16への変換のテスト
+	sheena::VInt8<Size> vi8;
+	for(int i=0;i<vi8.size();i++){
+		vi8[i] = i;
+	}
+	vi16.clear();
+	vi16 = vi8.to_i16();
+	for(int i=0;i<vi8.size();i++){
+		ok_if_equal(vi8[i], vi16[i]);
+	}
+
 }
 static void test_simd(){
 	test_simd_sub<3>();
