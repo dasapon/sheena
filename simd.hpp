@@ -746,7 +746,7 @@ MATH_OPERATOR_SCALAR(TYPE, VECTOR, SET1, LOAD, STORE, OP, OP_NAME)
 #elif defined(SIMD256_AVAILABLE)
 			//ループ内で, 16bit整数x16個分のconvertを行う
 			for(size_t i=0;i<vi16.size_with_padding;i+=vi16.ways){
-				MM x = _mm256_cvtepi8_epi16(_mm256_loadu_si256(reinterpret_cast<const __m128i*>(w + i)));
+				MM x = _mm256_cvtepi8_epi16(_mm_load_si128(reinterpret_cast<const __m128i*>(w + i)));
 				STORE_SI(vi16.w + i, x);
 			}
 #else
